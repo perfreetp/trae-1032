@@ -13,6 +13,11 @@ import {
   X,
   File,
   ChevronDown,
+  CheckSquare,
+  Square,
+  AlertTriangle,
+  Timer,
+  History,
 } from 'lucide-react';
 import { useAppStore, formatDateTime } from '../../store/useAppStore';
 import { replyTemplates, problemCategories, departments } from '../../data/mockData';
@@ -22,25 +27,32 @@ import type {
   WorkOrderStatus,
   UrgencyLevel,
   ChannelType,
+  OperationLog,
+  UserRole,
 } from '../../types';
 
 export default function Process() {
   const location = useLocation();
   const locationState = location.state as { searchKeyword?: string; openOrderId?: string } | null;
 
-  const { workOrders, updateWorkOrder } = useAppStore();
+  const { workOrders, updateWorkOrder, batchAssignWorkOrders, operationLogs, currentRole } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<WorkOrderStatus | 'all'>('all');
+  const [timeWarningFilter, setTimeWarningFilter] = useState<'all' | 'warning' | 'overdue' | 'normal'>('all');
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showReplyModal, setShowReplyModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [showBatchAssignModal, setShowBatchAssignModal] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [replyContent, setReplyContent] = useState('');
   const [assignDept, setAssignDept] = useState('');
   const [assignPerson, setAssignPerson] = useState('');
   const [assignRemark, setAssignRemark] = useState('');
+  const [batchAssignDept, setBatchAssignDept] = useState('');
+  const [batchAssignPerson, setBatchAssignPerson] = useState('');
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const [filters, setFilters] = useState({
     channel: '' as ChannelType | '',
@@ -66,6 +78,46 @@ export default function Process() {
       if (updated) setSelectedOrder(updated);
     }
   }, [workOrders, selectedOrder?.id]);
+
+  const getTimeWarningType = (deadline: string, status: WorkOrderStatus): 'normal' | 'warning' | 'overdue' => {
+    if (status === 'closed' || status === 'replied') return 'normal';
+    const now = new Date();
+    const deadlineDate = new Date(deadline);
+    const diffHours = (deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+    
+    if (diffHours < 0) return 'overdue';
+    if (diffHours <= 4) return 'warning';
+    return 'normal';
+  };
+
+  const getTimeWarningText = (deadline: string, status: WorkOrderStatus): string => {
+    if (status === 'closed' || status === 'replied') return '已完成';
+    const now = new Date();
+    const deadlineDate = new Date(deadline);
+    const diffMs = deadlineDate.getTime() - now.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    
+    if (diffMs < 0) {
+      const overdueHours = Math.abs(Math.floor(diffHours));
+      return `已超时 ${overdueHours} 小时`;
+    }
+    if (diffHours < 1) {
+      const mins = Math.floor(diffHours * 60);
+      return `剩余 ${mins} 分钟`;
+    }
+    if (diffHours < 24) {
+      return `剩余 ${Math.floor(diffHours)} 小时`;
+    }
+    const days = Math.floor(diffHours / 24);
+    return `剩余 ${days} 天`;
+  };
+
+  const orderLogs = useMemo(() => {
+    if (!selectedOrder) return [];
+    return operationLogs
+      .filter((log) => log.orderId === selectedOrder.id)
+      .sort((a, b) => new Date(b.createTime).getTime() - new Date(a.createTime).getTime());
+  }, [selectedOrder, operationLogs]);
 
   const filteredOrders = useMemo(() => {
     let result = workOrders;
@@ -104,8 +156,16 @@ export default function Process() {
       });
     }
 
+    if (timeWarningFilter !== 'all') {
+      result = result.filter((o) => getTimeWarningType(o.deadline, o.status) === timeWarningFilter);
+    }
+
     return result;
-  }, [workOrders, activeTab, searchKeyword, filters]);
+  }, [workOrders, activeTab, searchKeyword, filters, timeWarningFilter]);
+
+  const pendingOrderIds = useMemo(() => {
+    return filteredOrders.filter((o) => o.status === 'pending').map((o) => o.id);
+  }, [filteredOrders]);
 
   const tabCounts: Record<string, number> = {
     all: workOrders.length,
@@ -116,6 +176,16 @@ export default function Process() {
     closed: workOrders.filter((o) => o.status === 'closed').length,
   };
 
+  const timeWarningCounts = useMemo(() => {
+    const activeOrders = workOrders.filter((o) => o.status !== 'closed' && o.status !== 'replied');
+    return {
+      all: activeOrders.length,
+      warning: activeOrders.filter((o) => getTimeWarningType(o.deadline, o.status) === 'warning').length,
+      overdue: activeOrders.filter((o) => getTimeWarningType(o.deadline, o.status) === 'overdue').length,
+      normal: activeOrders.filter((o) => getTimeWarningType(o.deadline, o.status) === 'normal').length,
+    };
+  }, [workOrders]);
+
   const tabs: { key: WorkOrderStatus | 'all'; label: string }[] = [
     { key: 'all', label: '全部' },
     { key: 'pending', label: '待受理' },
@@ -124,6 +194,16 @@ export default function Process() {
     { key: 'replied', label: '已答复' },
     { key: 'closed', label: '已关闭' },
   ];
+
+  const timeWarningTabs = [
+    { key: 'all', label: '全部', icon: Clock },
+    { key: 'warning', label: '即将超时', icon: Timer },
+    { key: 'overdue', label: '已超时', icon: AlertTriangle },
+    { key: 'normal', label: '正常', icon: CheckCircle },
+  ];
+
+  const canAssign = currentRole === 'service' || currentRole === 'manager';
+  const canReply = currentRole === 'service' || currentRole === 'manager';
 
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplate(templateId);
@@ -146,6 +226,15 @@ export default function Process() {
     setAssignDept('');
     setAssignPerson('');
     setAssignRemark('');
+  };
+
+  const handleBatchAssign = () => {
+    if (selectedIds.length === 0 || !batchAssignDept || !batchAssignPerson) return;
+    batchAssignWorkOrders(selectedIds, batchAssignDept, batchAssignPerson);
+    setShowBatchAssignModal(false);
+    setBatchAssignDept('');
+    setBatchAssignPerson('');
+    setSelectedIds([]);
   };
 
   const handleReply = () => {
@@ -172,6 +261,22 @@ export default function Process() {
 
   const hasActiveFilters =
     filters.channel || filters.category || filters.urgency || filters.department || filters.overdue;
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === pendingOrderIds.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds([...pendingOrderIds]);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter((i) => i !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
 
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B';
@@ -210,9 +315,48 @@ export default function Process() {
                 )}
               </button>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3">
+              {canAssign && selectedIds.length > 0 && (
+                <button
+                  onClick={() => setShowBatchAssignModal(true)}
+                  className="px-4 py-2 text-sm text-white bg-railway-500 rounded-md hover:bg-railway-600 transition-colors flex items-center"
+                >
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  批量分派 ({selectedIds.length})
+                </button>
+              )}
               <span className="text-sm text-neutral-500">共 {filteredOrders.length} 条记录</span>
             </div>
+          </div>
+
+          <div className="flex space-x-2 mb-4">
+            {timeWarningTabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = timeWarningFilter === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setTimeWarningFilter(tab.key as any)}
+                  className={`flex items-center px-3 py-1.5 text-sm rounded-md transition-colors ${
+                    isActive
+                      ? tab.key === 'overdue'
+                        ? 'bg-danger-500 text-white'
+                        : tab.key === 'warning'
+                        ? 'bg-warning-500 text-white'
+                        : tab.key === 'normal'
+                        ? 'bg-success-500 text-white'
+                        : 'bg-railway-500 text-white'
+                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 mr-1.5" />
+                  {tab.label}
+                  <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-white/20">
+                    {timeWarningCounts[tab.key as keyof typeof timeWarningCounts]}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           <div className="flex space-x-1 border-b border-neutral-200 -mx-4 px-4">
@@ -245,6 +389,17 @@ export default function Process() {
           <table className="w-full text-sm">
             <thead className="bg-neutral-50">
               <tr>
+                {canAssign && (
+                  <th className="text-left py-3 px-4 text-neutral-500 font-medium w-10">
+                    <button onClick={toggleSelectAll} className="p-1">
+                      {selectedIds.length === pendingOrderIds.length && pendingOrderIds.length > 0 ? (
+                        <CheckSquare className="w-4 h-4 text-railway-500" />
+                      ) : (
+                        <Square className="w-4 h-4 text-neutral-400" />
+                      )}
+                    </button>
+                  </th>
+                )}
                 <th className="text-left py-3 px-4 text-neutral-500 font-medium">工单编号</th>
                 <th className="text-left py-3 px-4 text-neutral-500 font-medium">标题</th>
                 <th className="text-left py-3 px-4 text-neutral-500 font-medium">旅客</th>
@@ -259,13 +414,28 @@ export default function Process() {
             <tbody>
               {filteredOrders.length > 0 ? (
                 filteredOrders.map((order) => {
-                  const overdue = isOverdue(order.deadline) && order.status !== 'closed';
+                  const timeWarning = getTimeWarningType(order.deadline, order.status);
+                  const timeWarningText = getTimeWarningText(order.deadline, order.status);
+                  const isPending = order.status === 'pending';
                   return (
                     <tr
                       key={order.id}
                       className="border-b border-neutral-100 hover:bg-neutral-50 cursor-pointer"
                       onClick={() => setSelectedOrder(order)}
                     >
+                      {canAssign && (
+                        <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                          {isPending ? (
+                            <button onClick={() => toggleSelect(order.id)} className="p-1">
+                              {selectedIds.includes(order.id) ? (
+                                <CheckSquare className="w-4 h-4 text-railway-500" />
+                              ) : (
+                                <Square className="w-4 h-4 text-neutral-400" />
+                              )}
+                            </button>
+                          ) : null}
+                        </td>
+                      )}
                       <td className="py-3 px-4 text-railway-600 font-mono text-xs">{order.id}</td>
                       <td className="py-3 px-4 text-neutral-700 max-w-xs truncate">
                         {order.title}
@@ -295,13 +465,23 @@ export default function Process() {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center">
-                          {overdue ? (
+                          {timeWarning === 'overdue' ? (
                             <AlertCircle className="w-4 h-4 text-danger-500 mr-1" />
+                          ) : timeWarning === 'warning' ? (
+                            <Timer className="w-4 h-4 text-warning-500 mr-1" />
                           ) : (
                             <Clock className="w-4 h-4 text-neutral-400 mr-1" />
                           )}
-                          <span className={overdue ? 'text-danger-500' : 'text-neutral-500'}>
-                            {order.deadline}
+                          <span
+                            className={
+                              timeWarning === 'overdue'
+                                ? 'text-danger-500'
+                                : timeWarning === 'warning'
+                                ? 'text-warning-500'
+                                : 'text-neutral-500'
+                            }
+                          >
+                            {timeWarningText}
                           </span>
                         </div>
                       </td>
@@ -317,7 +497,7 @@ export default function Process() {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          {order.status === 'pending' && (
+                          {canAssign && order.status === 'pending' && (
                             <button
                               className="p-1 text-neutral-500 hover:text-railway-500 transition-colors"
                               title="分派工单"
@@ -330,7 +510,7 @@ export default function Process() {
                               <UserPlus className="w-4 h-4" />
                             </button>
                           )}
-                          {(order.status === 'assigned' || order.status === 'processing') && (
+                          {canReply && (order.status === 'assigned' || order.status === 'processing') && (
                             <button
                               className="p-1 text-neutral-500 hover:text-success-500 transition-colors"
                               title="答复工单"
@@ -350,7 +530,7 @@ export default function Process() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-neutral-400">
+                  <td colSpan={canAssign ? 10 : 9} className="py-12 text-center text-neutral-400">
                     暂无符合条件的工单记录
                   </td>
                 </tr>
@@ -366,9 +546,9 @@ export default function Process() {
         </div>
       </div>
 
-      {selectedOrder && !showAssignModal && !showReplyModal && !showFilterModal && (
+      {selectedOrder && !showAssignModal && !showReplyModal && !showFilterModal && !showBatchAssignModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-white rounded-lg w-[750px] max-h-[85vh] overflow-hidden animate-slide-up">
+          <div className="bg-white rounded-lg w-[800px] max-h-[85vh] overflow-hidden animate-slide-up">
             <div className="p-5 border-b border-neutral-200 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-neutral-700">工单详情</h3>
               <button
@@ -444,7 +624,26 @@ export default function Process() {
                 </div>
                 <div>
                   <p className="text-sm text-neutral-500">处理时限</p>
-                  <p className="text-sm text-neutral-700 mt-1">{selectedOrder.deadline}</p>
+                  <div className="flex items-center mt-1">
+                    {getTimeWarningType(selectedOrder.deadline, selectedOrder.status) === 'overdue' ? (
+                      <AlertCircle className="w-4 h-4 text-danger-500 mr-1" />
+                    ) : getTimeWarningType(selectedOrder.deadline, selectedOrder.status) === 'warning' ? (
+                      <Timer className="w-4 h-4 text-warning-500 mr-1" />
+                    ) : (
+                      <Clock className="w-4 h-4 text-neutral-400 mr-1" />
+                    )}
+                    <span
+                      className={
+                        getTimeWarningType(selectedOrder.deadline, selectedOrder.status) === 'overdue'
+                          ? 'text-danger-500'
+                          : getTimeWarningType(selectedOrder.deadline, selectedOrder.status) === 'warning'
+                          ? 'text-warning-500'
+                          : 'text-neutral-700'
+                      }
+                    >
+                      {selectedOrder.deadline} ({getTimeWarningText(selectedOrder.deadline, selectedOrder.status)})
+                    </span>
+                  </div>
                 </div>
               </div>
               <div className="mb-4">
@@ -484,7 +683,7 @@ export default function Process() {
                 </div>
               )}
               {selectedOrder.replyContent && (
-                <div>
+                <div className="mb-4">
                   <p className="text-sm text-neutral-500 mb-1">答复内容</p>
                   <div className="p-3 bg-success-50 rounded-md text-sm text-neutral-700 whitespace-pre-wrap border border-success-100">
                     {selectedOrder.replyContent}
@@ -496,6 +695,46 @@ export default function Process() {
                   )}
                 </div>
               )}
+              {orderLogs.length > 0 && (
+                <div>
+                  <p className="text-sm text-neutral-500 mb-3 flex items-center">
+                    <History className="w-4 h-4 mr-1.5" />
+                    操作轨迹
+                  </p>
+                  <div className="space-y-3">
+                    {orderLogs.map((log, index) => (
+                      <div key={log.id} className="flex">
+                        <div className="flex flex-col items-center mr-4">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              index === 0 ? 'bg-railway-500' : 'bg-neutral-200'
+                            }`}
+                          >
+                            <Clock
+                              className={`w-4 h-4 ${index === 0 ? 'text-white' : 'text-neutral-500'}`}
+                            />
+                          </div>
+                          {index < orderLogs.length - 1 && (
+                            <div className="w-0.5 h-full bg-neutral-200 mt-1"></div>
+                          )}
+                        </div>
+                        <div className="flex-1 pb-4">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-neutral-700">{log.actionName}</p>
+                            <span className="text-xs text-neutral-400">{log.createTime}</span>
+                          </div>
+                          <p className="text-xs text-neutral-500 mt-1">
+                            {log.operator}（{log.operatorRole}）
+                          </p>
+                          {log.remark && (
+                            <p className="text-sm text-neutral-600 mt-1">{log.remark}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="p-4 border-t border-neutral-200 flex justify-end space-x-3">
               <button
@@ -504,7 +743,7 @@ export default function Process() {
               >
                 关闭
               </button>
-              {selectedOrder.status === 'pending' && (
+              {canAssign && selectedOrder.status === 'pending' && (
                 <button
                   onClick={() => setShowAssignModal(true)}
                   className="px-4 py-2 text-sm text-white bg-railway-500 rounded-md hover:bg-railway-600 transition-colors flex items-center"
@@ -513,7 +752,7 @@ export default function Process() {
                   分派工单
                 </button>
               )}
-              {(selectedOrder.status === 'assigned' || selectedOrder.status === 'processing') && (
+              {canReply && (selectedOrder.status === 'assigned' || selectedOrder.status === 'processing') && (
                 <button
                   onClick={() => setShowReplyModal(true)}
                   className="px-4 py-2 text-sm text-white bg-success-500 rounded-md hover:bg-success-600 transition-colors flex items-center"
@@ -548,7 +787,7 @@ export default function Process() {
               <div className="p-3 bg-neutral-50 rounded-md">
                 <p className="text-sm text-neutral-500">当前工单</p>
                 <p className="text-sm font-medium text-neutral-700 mt-1">{selectedOrder.title}</p>
-                <p className="text-xs text-neutral-400 mt-1">{selectedOrder.id}</p>
+                <p className="text-xs text-neutral-500 mt-1">{selectedOrder.id}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
@@ -619,6 +858,89 @@ export default function Process() {
         </div>
       )}
 
+      {showBatchAssignModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white rounded-lg w-[500px] animate-slide-up">
+            <div className="p-5 border-b border-neutral-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-neutral-700">批量分派工单</h3>
+              <button
+                onClick={() => {
+                  setShowBatchAssignModal(false);
+                  setBatchAssignDept('');
+                  setBatchAssignPerson('');
+                }}
+                className="p-1 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 rounded transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="p-3 bg-railway-50 rounded-md border border-railway-100">
+                <p className="text-sm text-railway-700 font-medium">
+                  已选择 {selectedIds.length} 条待受理工单
+                </p>
+                <p className="text-xs text-railway-500 mt-1">
+                  将统一分派至相同的责任部门和处理人员
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  责任部门 <span className="text-danger-500">*</span>
+                </label>
+                <select
+                  value={batchAssignDept}
+                  onChange={(e) => setBatchAssignDept(e.target.value)}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-railway-500 focus:border-transparent"
+                >
+                  <option value="">请选择部门</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.name}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  处理人员 <span className="text-danger-500">*</span>
+                </label>
+                <select
+                  value={batchAssignPerson}
+                  onChange={(e) => setBatchAssignPerson(e.target.value)}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-railway-500 focus:border-transparent"
+                >
+                  <option value="">请选择处理人员</option>
+                  <option value="李坐席">李坐席</option>
+                  <option value="王坐席">王坐席</option>
+                  <option value="张坐席">张坐席</option>
+                  <option value="赵坐席">赵坐席</option>
+                </select>
+              </div>
+            </div>
+            <div className="p-4 border-t border-neutral-200 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowBatchAssignModal(false);
+                  setBatchAssignDept('');
+                  setBatchAssignPerson('');
+                }}
+                className="px-4 py-2 text-sm text-neutral-600 bg-neutral-100 rounded-md hover:bg-neutral-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleBatchAssign}
+                disabled={!batchAssignDept || !batchAssignPerson}
+                className="px-4 py-2 text-sm text-white bg-railway-500 rounded-md hover:bg-railway-600 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                确认批量分派
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showReplyModal && selectedOrder && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
           <div className="bg-white rounded-lg w-[650px] max-h-[85vh] overflow-hidden animate-slide-up">
@@ -639,7 +961,7 @@ export default function Process() {
               <div className="p-3 bg-neutral-50 rounded-md">
                 <p className="text-sm text-neutral-500">当前工单</p>
                 <p className="text-sm font-medium text-neutral-700 mt-1">{selectedOrder.title}</p>
-                <p className="text-xs text-neutral-400 mt-1">{selectedOrder.id}</p>
+                <p className="text-xs text-neutral-500 mt-1">{selectedOrder.id}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-2">
@@ -824,5 +1146,25 @@ export default function Process() {
         </div>
       )}
     </div>
+  );
+}
+
+function CheckCircle(props: any) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
   );
 }

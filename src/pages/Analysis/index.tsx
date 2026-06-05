@@ -55,63 +55,113 @@ const deptData = [
 ];
 
 export default function Analysis() {
-  const { workOrders, reviews, rectifyTasks } = useAppStore();
+  const { workOrders, reviews, rectifyTasks, operationLogs } = useAppStore();
   const [selectedMonth, setSelectedMonth] = useState('2024年6月');
   const [showMonthDropdown, setShowMonthDropdown] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const months = ['2024年6月', '2024年5月', '2024年4月', '2024年3月', '2024年2月', '2024年1月'];
 
+  const getMonthFilter = (monthStr: string) => {
+    const year = parseInt(monthStr.split('年')[0]);
+    const month = parseInt(monthStr.split('年')[1].replace('月', ''));
+    return { year, month };
+  };
+
+  const isInMonth = (dateStr: string, monthFilter: { year: number; month: number }) => {
+    if (!dateStr) return false;
+    const date = new Date(dateStr);
+    return date.getFullYear() === monthFilter.year && date.getMonth() + 1 === monthFilter.month;
+  };
+
+  const monthFilter = getMonthFilter(selectedMonth);
+
+  const filteredWorkOrders = useMemo(() => {
+    return workOrders.filter((o) => isInMonth(o.createTime, monthFilter));
+  }, [workOrders, monthFilter]);
+
+  const filteredReviews = useMemo(() => {
+    return reviews.filter((r) => isInMonth(r.reviewTime, monthFilter));
+  }, [reviews, monthFilter]);
+
+  const filteredRectifyTasks = useMemo(() => {
+    return rectifyTasks.filter((t) => isInMonth(t.createTime, monthFilter));
+  }, [rectifyTasks, monthFilter]);
+
+  const filteredOperationLogs = useMemo(() => {
+    return operationLogs.filter((l) => isInMonth(l.createTime, monthFilter));
+  }, [operationLogs, monthFilter]);
+
   const categoryData = useMemo(() => {
     const counts: Record<string, number> = {};
-    workOrders.forEach((o) => {
+    filteredWorkOrders.forEach((o) => {
       counts[o.category] = (counts[o.category] || 0) + 1;
     });
     return Object.entries(counts)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
-  }, [workOrders]);
+  }, [filteredWorkOrders]);
 
   const channelData = useMemo(() => {
     const counts: Record<string, number> = { 热线: 0, 网页: 0, 微信: 0, APP: 0 };
-    workOrders.forEach((o) => {
+    filteredWorkOrders.forEach((o) => {
       if (o.channel === 'hotline') counts['热线']++;
       else if (o.channel === 'web') counts['网页']++;
       else if (o.channel === 'wechat') counts['微信']++;
       else counts['APP']++;
     });
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
-  }, [workOrders]);
+  }, [filteredWorkOrders]);
 
   const satisfactionData = useMemo(() => {
-    if (reviews.length === 0) return 4.2;
-    const sum = reviews.reduce((acc, r) => acc + r.satisfaction, 0);
-    return (sum / reviews.length).toFixed(1);
-  }, [reviews]);
+    if (filteredReviews.length === 0) return '4.2';
+    const sum = filteredReviews.reduce((acc, r) => acc + r.satisfaction, 0);
+    return (sum / filteredReviews.length).toFixed(1);
+  }, [filteredReviews]);
 
   const completionRate = useMemo(() => {
-    const closed = workOrders.filter((o) => o.status === 'closed' || o.status === 'replied').length;
-    const total = workOrders.length;
+    const closed = filteredWorkOrders.filter((o) => o.status === 'closed' || o.status === 'replied').length;
+    const total = filteredWorkOrders.length;
     return total > 0 ? ((closed / total) * 100).toFixed(1) : '0';
-  }, [workOrders]);
+  }, [filteredWorkOrders]);
 
   const repeatRate = useMemo(() => {
-    const repeat = reviews.filter((r) => r.isRepeat).length;
-    const total = reviews.length;
+    const repeat = filteredReviews.filter((r) => r.isRepeat).length;
+    const total = filteredReviews.length;
     return total > 0 ? ((repeat / total) * 100).toFixed(1) : '0';
-  }, [reviews]);
+  }, [filteredReviews]);
 
   const rectifyCompletionRate = useMemo(() => {
-    const closed = rectifyTasks.filter((t) => t.status === 'closed').length;
-    const total = rectifyTasks.length;
+    const closed = filteredRectifyTasks.filter((t) => t.status === 'closed').length;
+    const total = filteredRectifyTasks.length;
     return total > 0 ? ((closed / total) * 100).toFixed(1) : '0';
-  }, [rectifyTasks]);
+  }, [filteredRectifyTasks]);
+
+  const batchAssignCount = useMemo(() => {
+    return filteredOperationLogs.filter((l) => l.action === 'batch_assign').length;
+  }, [filteredOperationLogs]);
+
+  const overdueCount = useMemo(() => {
+    const now = new Date();
+    return filteredWorkOrders.filter((o) => {
+      if (o.status === 'closed' || o.status === 'replied') return false;
+      return new Date(o.deadline) < now;
+    }).length;
+  }, [filteredWorkOrders]);
+
+  const lowSatisfactionCount = useMemo(() => {
+    return filteredReviews.filter((r) => r.satisfaction <= 2).length;
+  }, [filteredReviews]);
+
+  const repeatComplaintCount = useMemo(() => {
+    return filteredReviews.filter((r) => r.isRepeat).length;
+  }, [filteredReviews]);
 
   const keyMetrics = [
     {
       label: '工单总量',
-      value: workOrders.length,
+      value: filteredWorkOrders.length,
       change: '+12.5%',
       trend: 'up',
       description: '较上月',
@@ -131,10 +181,10 @@ export default function Analysis() {
       description: '较上月',
     },
     {
-      label: '重复投诉率',
-      value: repeatRate + '%',
-      change: '-1.5%',
-      trend: 'down',
+      label: '整改关闭率',
+      value: rectifyCompletionRate + '%',
+      change: '+3.2%',
+      trend: 'up',
       description: '较上月',
     },
   ];
@@ -155,59 +205,64 @@ export default function Analysis() {
 ───────────────────────────────────────────────────────────────
 一、总体情况
 ───────────────────────────────────────────────────────────────
-本月共受理旅客咨询投诉 ${workOrders.length} 件，较上月增长 12.5%。
+本月共受理旅客咨询投诉 ${filteredWorkOrders.length} 件，较上月增长 12.5%。
 
 渠道分布情况：
 ${channelData
   .map(
     (c, i) =>
       `  ${i + 1}. ${c.name}：${c.value} 件（占比 ${
-        workOrders.length > 0
-          ? ((c.value / workOrders.length) * 100).toFixed(1)
+        filteredWorkOrders.length > 0
+          ? ((c.value / filteredWorkOrders.length) * 100).toFixed(1)
           : '0'
       }%）`
   )
   .join('\n')}
 
 按时处理率：${completionRate}%，较上月提升 2.1 个百分点。
+批量分派工单：${batchAssignCount} 件
+超时工单数量：${overdueCount} 件
 
 ───────────────────────────────────────────────────────────────
 二、旅客满意度
 ───────────────────────────────────────────────────────────────
-本月共完成回访 ${reviews.length} 件，平均满意度 ${satisfactionData} 分，较上月提升 0.1 分。
+本月共完成回访 ${filteredReviews.length} 件，平均满意度 ${satisfactionData} 分，较上月提升 0.1 分。
 
 满意度分布：
-  非常满意：${reviews.filter((r) => r.satisfaction === 5).length} 人
-  满意：${reviews.filter((r) => r.satisfaction === 4).length} 人
-  一般：${reviews.filter((r) => r.satisfaction === 3).length} 人
-  不满意：${reviews.filter((r) => r.satisfaction === 2).length} 人
-  非常不满意：${reviews.filter((r) => r.satisfaction === 1).length} 人
+  非常满意：${filteredReviews.filter((r) => r.satisfaction === 5).length} 人
+  满意：${filteredReviews.filter((r) => r.satisfaction === 4).length} 人
+  一般：${filteredReviews.filter((r) => r.satisfaction === 3).length} 人
+  不满意：${filteredReviews.filter((r) => r.satisfaction === 2).length} 人
+  非常不满意：${filteredReviews.filter((r) => r.satisfaction === 1).length} 人
 
-重复投诉：${reviews.filter((r) => r.isRepeat).length} 件，重复投诉率 ${repeatRate}%。
+低满意度回访（≤2分）：${lowSatisfactionCount} 件
+重复投诉：${repeatComplaintCount} 件，重复投诉率 ${repeatRate}%
 
 ───────────────────────────────────────────────────────────────
 三、热点问题排行 TOP5
 ───────────────────────────────────────────────────────────────
-${hotIssues
-  .map(
-    (item, index) =>
-      `  TOP${index + 1}：${item.name}（${item.value} 件，占比 ${
-        workOrders.length > 0
-          ? ((item.value / workOrders.length) * 100).toFixed(1)
-          : '0'
-      }%）`
-  )
-  .join('\n')}
+${hotIssues.length > 0
+  ? hotIssues
+      .map(
+        (item, index) =>
+          `  TOP${index + 1}：${item.name}（${item.value} 件，占比 ${
+            filteredWorkOrders.length > 0
+              ? ((item.value / filteredWorkOrders.length) * 100).toFixed(1)
+              : '0'
+          }%）`
+      )
+      .join('\n')
+  : '  暂无数据'}
 
 ───────────────────────────────────────────────────────────────
 四、整改完成情况
 ───────────────────────────────────────────────────────────────
-整改任务总数：${rectifyTasks.length} 件
-  待整改：${rectifyTasks.filter((t) => t.status === 'pending').length} 件
-  整改中：${rectifyTasks.filter((t) => t.status === 'rectifying').length} 件
-  待复核：${rectifyTasks.filter((t) => t.status === 'reviewing').length} 件
-  已关闭：${rectifyTasks.filter((t) => t.status === 'closed').length} 件
-  整改完成率：${rectifyCompletionRate}%
+整改任务总数：${filteredRectifyTasks.length} 件
+  待整改：${filteredRectifyTasks.filter((t) => t.status === 'pending').length} 件
+  整改中：${filteredRectifyTasks.filter((t) => t.status === 'rectifying').length} 件
+  待复核：${filteredRectifyTasks.filter((t) => t.status === 'reviewing').length} 件
+  已关闭：${filteredRectifyTasks.filter((t) => t.status === 'closed').length} 件
+  整改关闭率：${rectifyCompletionRate}%
 
 ───────────────────────────────────────────────────────────────
 五、改进措施与建议
@@ -218,6 +273,8 @@ ${hotIssues
 4. 加强客服人员培训，提升服务意识
 5. 建立热点问题快速响应机制
 6. 针对重复投诉问题，建立专项整改跟踪机制
+7. 对低满意度工单进行重点跟进，提升旅客体验
+8. 优化工单分派流程，提高批量处理效率
 
 ═══════════════════════════════════════════════════════════════
                         报告结束
@@ -439,19 +496,20 @@ ${hotIssues
             <div>
               <h4 className="text-sm font-semibold text-neutral-700 mb-2">一、总体情况</h4>
               <p className="text-sm text-neutral-600 leading-relaxed">
-                本月共受理旅客咨询投诉 {workOrders.length} 件，较上月增长 12.5%。其中热线电话{' '}
+                本月共受理旅客咨询投诉 {filteredWorkOrders.length} 件，较上月增长 12.5%。其中热线电话{' '}
                 {channelData.find((c) => c.name === '热线')?.value || 0} 件，网站留言{' '}
                 {channelData.find((c) => c.name === '网页')?.value || 0} 件，微信公众号{' '}
                 {channelData.find((c) => c.name === '微信')?.value || 0} 件，APP 反馈{' '}
                 {channelData.find((c) => c.name === 'APP')?.value || 0} 件。按时处理率 {completionRate}%
-                ，较上月提升 2.1 个百分点。
+                ，批量分派 {batchAssignCount} 件，超时工单 {overdueCount} 件。
               </p>
             </div>
             <div>
               <h4 className="text-sm font-semibold text-neutral-700 mb-2">二、旅客满意度</h4>
               <p className="text-sm text-neutral-600 leading-relaxed">
-                本月共完成回访 {reviews.length} 件，平均满意度 {satisfactionData} 分，较上月提升 0.1
-                分。整体满意度处于较好水平，重复投诉率 {repeatRate}%，较上月有所下降。
+                本月共完成回访 {filteredReviews.length} 件，平均满意度 {satisfactionData} 分，较上月提升 0.1
+                分。低满意度回访 {lowSatisfactionCount} 件，重复投诉 {repeatComplaintCount} 件，
+                重复投诉率 {repeatRate}%，较上月有所下降。
               </p>
             </div>
           </div>
@@ -459,8 +517,8 @@ ${hotIssues
             <div>
               <h4 className="text-sm font-semibold text-neutral-700 mb-2">三、主要问题分析</h4>
               <p className="text-sm text-neutral-600 leading-relaxed">
-                本月热点问题集中在{hotIssues.slice(0, 3).map((h) => h.name).join('、')}
-                等方面。需要重点关注并持续改进。
+                本月热点问题集中在{hotIssues.length > 0 ? hotIssues.slice(0, 3).map((h) => h.name).join('、') : '暂无'}
+                等方面。整改关闭率 {rectifyCompletionRate}%，需持续跟踪改进效果。
               </p>
             </div>
             <div>
@@ -468,7 +526,7 @@ ${hotIssues
               <p className="text-sm text-neutral-600 leading-relaxed">
                 1. 加强车站无障碍设施巡检维护；2. 优化12306系统稳定性；3.
                 增加列车空调预防性检修频次；4. 加强客服人员培训，提升服务意识；5.
-                建立热点问题快速响应机制。
+                建立热点问题快速响应机制；6. 对低满意度工单重点跟进。
               </p>
             </div>
           </div>

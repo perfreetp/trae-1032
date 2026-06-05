@@ -10,19 +10,24 @@ import {
   Train,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useAppStore } from '../../store/useAppStore';
+import type { UserRole } from '../../types';
 
-const menuItems = [
-  { path: '/', label: '工单总览', icon: LayoutDashboard },
-  { path: '/channel', label: '渠道接入', icon: Inbox },
-  { path: '/process', label: '工单处理', icon: ClipboardList },
-  { path: '/review', label: '旅客回访', icon: PhoneCall },
-  { path: '/standards', label: '服务标准', icon: BookOpen },
-  { path: '/rectify', label: '整改跟踪', icon: Wrench },
-  { path: '/analysis', label: '质量分析', icon: BarChart3 },
+const allMenuItems = [
+  { path: '/', label: '工单总览', icon: LayoutDashboard, roles: ['service', 'reviewer', 'manager'] as UserRole[] },
+  { path: '/channel', label: '渠道接入', icon: Inbox, roles: ['service', 'manager'] as UserRole[] },
+  { path: '/process', label: '工单处理', icon: ClipboardList, roles: ['service', 'manager'] as UserRole[] },
+  { path: '/review', label: '旅客回访', icon: PhoneCall, roles: ['reviewer', 'manager'] as UserRole[] },
+  { path: '/standards', label: '服务标准', icon: BookOpen, roles: ['service', 'reviewer', 'manager'] as UserRole[] },
+  { path: '/rectify', label: '整改跟踪', icon: Wrench, roles: ['manager'] as UserRole[] },
+  { path: '/analysis', label: '质量分析', icon: BarChart3, roles: ['manager'] as UserRole[] },
 ];
 
 export default function Sidebar() {
   const location = useLocation();
+  const { currentRole } = useAppStore();
+
+  const menuItems = allMenuItems.filter((item) => item.roles.includes(currentRole));
 
   return (
     <aside className="w-60 bg-neutral-700 text-white flex flex-col h-screen fixed left-0 top-0 z-20">

@@ -8,6 +8,8 @@ import type {
   TrendData,
   CategoryData,
   DashboardStats,
+  OperationLog,
+  FollowUpTask,
 } from '../types';
 
 export const departments: Department[] = [
@@ -194,6 +196,16 @@ export const reviews: Review[] = [
 
 export const rectifyTasks: RectifyTask[] = [
   {
+    id: 'RT004',
+    orderId: 'WO20240606003',
+    orderTitle: '投诉上海虹桥站检票口信息错误',
+    department: '车站管理部',
+    problemDescription: '旅客反映上海虹桥站显示屏显示的检票口信息与实际不符，导致多名旅客跑错检票口。',
+    status: 'pending',
+    deadline: '2024-06-12',
+    createTime: '2024-06-06 10:00:00',
+  },
+  {
     id: 'RT001',
     orderId: 'WO20240605002',
     orderTitle: '投诉广州南站无障碍电梯故障',
@@ -202,6 +214,7 @@ export const rectifyTasks: RectifyTask[] = [
     measure: '1. 对广州南站所有无障碍电梯进行全面检修；2. 清理无障碍通道占用物品；3. 设置专人巡查制度。',
     status: 'rectifying',
     deadline: '2024-06-10',
+    createTime: '2024-06-05 14:00:00',
   },
   {
     id: 'RT002',
@@ -212,6 +225,7 @@ export const rectifyTasks: RectifyTask[] = [
     measure: '1. 立即对G1234次列车空调系统进行维修；2. 对全段列车空调进行预防性检修；3. 制定高温季节空调保障预案。',
     status: 'reviewing',
     deadline: '2024-06-08',
+    createTime: '2024-06-06 09:00:00',
     completeTime: '2024-06-07',
     reviewer: '张主管',
   },
@@ -224,8 +238,58 @@ export const rectifyTasks: RectifyTask[] = [
     measure: '1. 早高峰增加2条临时安检通道；2. 优化安检流程，提高通行效率；3. 在排队区域增设降温设备。',
     status: 'closed',
     deadline: '2024-06-07',
+    createTime: '2024-06-04 10:00:00',
     completeTime: '2024-06-06',
     reviewer: '李主管',
+  },
+];
+
+export const operationLogs: OperationLog[] = [
+  {
+    id: 'LOG001',
+    orderId: 'WO20240606001',
+    action: 'create',
+    actionName: '创建工单',
+    operator: '李坐席',
+    operatorRole: '客服人员',
+    createTime: '2024-06-06 09:30:00',
+    remark: '新建工单',
+  },
+  {
+    id: 'LOG002',
+    orderId: 'WO20240606001',
+    action: 'assign',
+    actionName: '分派工单',
+    operator: '王主管',
+    operatorRole: '管理人员',
+    createTime: '2024-06-06 09:45:00',
+    remark: '分派至车辆段 - 李坐席',
+  },
+  {
+    id: 'LOG003',
+    orderId: 'WO20240606002',
+    action: 'create',
+    actionName: '创建工单',
+    operator: '张坐席',
+    operatorRole: '客服人员',
+    createTime: '2024-06-06 10:15:00',
+    remark: '新建工单',
+  },
+];
+
+export const followUpTasks: FollowUpTask[] = [
+  {
+    id: 'FU001',
+    reviewId: 'R004',
+    orderId: 'WO20240606002',
+    orderTitle: '投诉列车空调温度过低',
+    passengerName: '赵六',
+    assignee: '李回访员',
+    deadline: '2024-06-08',
+    remark: '旅客满意度较低且为重复投诉，需要二次跟进了解具体情况，做好解释安抚工作。',
+    createBy: '管理员',
+    status: 'pending',
+    createTime: '2024-06-06 15:00:00',
   },
 ];
 

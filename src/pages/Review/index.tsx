@@ -25,16 +25,28 @@ import {
   Check,
   Repeat,
   User,
+  Plus,
+  Calendar as CalendarIcon,
+  UserCheck,
 } from 'lucide-react';
 import { useAppStore, formatDateTime } from '../../store/useAppStore';
 import { satisfactionMap, statusMap } from '../../utils';
-import type { SatisfactionLevel, WorkOrder } from '../../types';
+import type { SatisfactionLevel, WorkOrder, FollowUpTask } from '../../types';
 
 const COLORS = ['#00B42A', '#165DFF', '#86909C', '#FF7D00', '#F53F3F'];
 
 export default function Review() {
   const navigate = useNavigate();
-  const { workOrders, reviews, addReview, updateReview } = useAppStore();
+  const {
+    workOrders,
+    reviews,
+    addReview,
+    updateReview,
+    followUpTasks,
+    addFollowUpTask,
+    updateFollowUpTask,
+    currentRole,
+  } = useAppStore();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editSatisfaction, setEditSatisfaction] = useState<SatisfactionLevel>(3);
@@ -47,6 +59,14 @@ export default function Review() {
   const [reviewComment, setReviewComment] = useState('');
   const [reviewIsRepeat, setReviewIsRepeat] = useState(false);
   const [reviewerName, setReviewerName] = useState('管理员');
+
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+  const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
+  const [followUpAssignee, setFollowUpAssignee] = useState('');
+  const [followUpDeadline, setFollowUpDeadline] = useState('');
+  const [followUpRemark, setFollowUpRemark] = useState('');
+
+  const canDoFollowUp = currentRole === 'reviewer' || currentRole === 'manager';
 
   const reviewedOrderIds = useMemo(() => new Set(reviews.map((r) => r.orderId)), [reviews]);
 
@@ -132,6 +152,51 @@ export default function Review() {
     setSelectedOrder(null);
   };
 
+  const openFollowUpModal = (reviewId: string) => {
+    setSelectedReviewId(reviewId);
+    setFollowUpAssignee('');
+    setFollowUpDeadline('');
+    setFollowUpRemark('');
+    setShowFollowUpModal(true);
+  };
+
+  const submitFollowUp = () => {
+    if (!selectedReviewId || !followUpAssignee || !followUpDeadline) return;
+    const review = reviews.find((r) => r.id === selectedReviewId);
+    if (!review) return;
+    addFollowUpTask({
+      orderId: review.orderId,
+      orderTitle: review.orderTitle,
+      reviewId: selectedReviewId,
+      assignee: followUpAssignee,
+      deadline: followUpDeadline,
+      remark: followUpRemark,
+      createBy: reviewerName,
+    });
+    setShowFollowUpModal(false);
+    setSelectedReviewId(null);
+  };
+
+  const completeFollowUp = (taskId: string) => {
+    updateFollowUpTask(taskId, {
+      status: 'completed',
+      completeTime: formatDateTime(),
+    });
+  };
+
+  const followUpsWithReview = useMemo(
+    () =>
+      followUpTasks.map((t) => ({
+        ...t,
+        review: reviews.find((r) => r.id === t.reviewId),
+        order: workOrders.find((o) => o.id === t.orderId),
+      })),
+    [followUpTasks, reviews, workOrders]
+  );
+
+  const pendingFollowUps = followUpsWithReview.filter((t) => t.status === 'pending');
+  const completedFollowUps = followUpsWithReview.filter((t) => t.status === 'completed');
+
   const renderStars = (
     rating: SatisfactionLevel,
     interactive = false,
@@ -164,8 +229,8 @@ export default function Review() {
     { label: '已回访', value: reviews.length, icon: CheckCircle, color: 'bg-success-500' },
     { label: '待回访', value: pendingReviews.length, icon: Clock, color: 'bg-warning-500' },
     {
-      label: '重复投诉',
-      value: reviews.filter((r) => r.isRepeat).length,
+      label: '待跟进',
+      value: pendingFollowUps.length,
       icon: AlertTriangle,
       color: 'bg-danger-500',
     },
@@ -424,6 +489,15 @@ export default function Review() {
                           <Edit className="w-4 h-4 mr-1" />
                           编辑
                         </button>
+                        {canDoFollowUp && (item.satisfaction <= 2 || item.isRepeat) && (
+                          <button
+                            onClick={() => openFollowUpModal(item.id)}
+                            className="flex items-center px-2 py-1 text-sm text-warning-600 hover:text-warning-700 transition-colors ml-2"
+                          >
+                            <Plus className="w-4 h-4 mr-1" />
+                            二次跟进
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -435,6 +509,93 @@ export default function Review() {
           )}
         </div>
       </div>
+
+      {canDoFollowUp && pendingFollowUps.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
+          <div className="p-5 border-b border-neutral-200 flex items-center justify-between">
+            <h3 className="text-base font-semibold text-neutral-700">待跟进任务</h3>
+            <span className="text-sm text-neutral-500">共 {pendingFollowUps.length} 条待跟进</span>
+          </div>
+          <div className="divide-y divide-neutral-100">
+            {pendingFollowUps.map((item) => (
+              <div key={item.id} className="p-5 hover:bg-neutral-50 transition-colors">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <span className="text-railway-600 font-mono text-xs">{item.orderId}</span>
+                      <span className="text-neutral-700 font-medium">{item.orderTitle}</span>
+                      <span className="px-2 py-0.5 text-xs bg-warning-100 text-warning-600 rounded-full">
+                        待跟进
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-6 text-sm text-neutral-500 mb-2">
+                      <span className="flex items-center">
+                        <UserCheck className="w-4 h-4 mr-1" />
+                        跟进人：{item.assignee}
+                      </span>
+                      <span className="flex items-center">
+                        <CalendarIcon className="w-4 h-4 mr-1" />
+                        计划完成：{item.deadline}
+                      </span>
+                      <span>创建人：{item.createBy}</span>
+                    </div>
+                    {item.remark && (
+                      <div className="flex items-start">
+                        <MessageSquare className="w-4 h-4 text-neutral-400 mr-2 mt-0.5" />
+                        <p className="text-sm text-neutral-600">{item.remark}</p>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => completeFollowUp(item.id)}
+                    className="flex items-center px-3 py-1 text-sm text-white bg-success-500 rounded-md hover:bg-success-600 transition-colors"
+                  >
+                    <Check className="w-4 h-4 mr-1" />
+                    完成跟进
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {canDoFollowUp && completedFollowUps.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
+          <div className="p-5 border-b border-neutral-200 flex items-center justify-between">
+            <h3 className="text-base font-semibold text-neutral-700">已跟进记录</h3>
+            <span className="text-sm text-neutral-500">共 {completedFollowUps.length} 条</span>
+          </div>
+          <div className="divide-y divide-neutral-100">
+            {completedFollowUps.map((item) => (
+              <div key={item.id} className="p-5 hover:bg-neutral-50 transition-colors">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <span className="text-railway-600 font-mono text-xs">{item.orderId}</span>
+                      <span className="text-neutral-700 font-medium">{item.orderTitle}</span>
+                      <span className="px-2 py-0.5 text-xs bg-success-100 text-success-600 rounded-full">
+                        已跟进
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-6 text-sm text-neutral-500 mb-2">
+                      <span>跟进人：{item.assignee}</span>
+                      <span>完成时间：{item.completeTime || '-'}</span>
+                      <span>创建人：{item.createBy}</span>
+                    </div>
+                    {item.remark && (
+                      <div className="flex items-start">
+                        <MessageSquare className="w-4 h-4 text-neutral-400 mr-2 mt-0.5" />
+                        <p className="text-sm text-neutral-600">{item.remark}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showReviewModal && selectedOrder && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
@@ -514,6 +675,85 @@ export default function Review() {
               >
                 <Check className="w-4 h-4 mr-2" />
                 保存回访
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFollowUpModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white rounded-lg w-[550px] animate-slide-up">
+            <div className="p-5 border-b border-neutral-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-neutral-700">创建二次跟进任务</h3>
+              <button
+                onClick={() => {
+                  setShowFollowUpModal(false);
+                  setSelectedReviewId(null);
+                }}
+                className="p-1 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 rounded transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  跟进负责人 <span className="text-danger-500">*</span>
+                </label>
+                <div className="flex items-center px-3 py-2 bg-neutral-50 rounded-md border border-neutral-200">
+                  <User className="w-4 h-4 text-neutral-400 mr-2" />
+                  <input
+                    type="text"
+                    value={followUpAssignee}
+                    onChange={(e) => setFollowUpAssignee(e.target.value)}
+                    placeholder="请输入跟进负责人姓名"
+                    className="flex-1 bg-transparent outline-none text-sm text-neutral-700"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  计划完成时间 <span className="text-danger-500">*</span>
+                </label>
+                <div className="flex items-center px-3 py-2 bg-neutral-50 rounded-md border border-neutral-200">
+                  <CalendarIcon className="w-4 h-4 text-neutral-400 mr-2" />
+                  <input
+                    type="date"
+                    value={followUpDeadline}
+                    onChange={(e) => setFollowUpDeadline(e.target.value)}
+                    className="flex-1 bg-transparent outline-none text-sm text-neutral-700"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">跟进说明</label>
+                <textarea
+                  value={followUpRemark}
+                  onChange={(e) => setFollowUpRemark(e.target.value)}
+                  rows={4}
+                  placeholder="请输入跟进说明和注意事项..."
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-railway-500 focus:border-transparent resize-none"
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-neutral-200 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowFollowUpModal(false);
+                  setSelectedReviewId(null);
+                }}
+                className="px-4 py-2 text-sm text-neutral-600 bg-neutral-100 rounded-md hover:bg-neutral-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={submitFollowUp}
+                disabled={!followUpAssignee || !followUpDeadline}
+                className="px-4 py-2 text-sm text-white bg-railway-500 rounded-md hover:bg-railway-600 transition-colors flex items-center disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                创建跟进
               </button>
             </div>
           </div>

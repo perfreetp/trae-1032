@@ -21,7 +21,8 @@ import { departments } from '../../data/mockData';
 import type { RectifyTask, RectifyStatus } from '../../types';
 
 export default function Rectify() {
-  const { rectifyTasks, updateRectifyTask } = useAppStore();
+  const { rectifyTasks, updateRectifyTask, currentRole } = useAppStore();
+  const canOperate = currentRole === 'manager';
 
   const [activeTab, setActiveTab] = useState<RectifyStatus | 'all'>('all');
   const [selectedTask, setSelectedTask] = useState<RectifyTask | null>(null);
@@ -233,7 +234,7 @@ export default function Rectify() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        {task.status === 'pending' && (
+                        {canOperate && task.status === 'pending' && (
                           <button
                             className="p-1 text-neutral-500 hover:text-success-500 transition-colors"
                             title="确认责任"
@@ -245,7 +246,7 @@ export default function Rectify() {
                             <UserCheck className="w-4 h-4" />
                           </button>
                         )}
-                        {task.status === 'rectifying' && (
+                        {canOperate && task.status === 'rectifying' && (
                           <button
                             className="p-1 text-neutral-500 hover:text-success-500 transition-colors"
                             title="提交整改措施"
@@ -257,7 +258,7 @@ export default function Rectify() {
                             <FileText className="w-4 h-4" />
                           </button>
                         )}
-                        {task.status === 'reviewing' && (
+                        {canOperate && task.status === 'reviewing' && (
                           <button
                             className="p-1 text-neutral-500 hover:text-success-500 transition-colors"
                             title="复核关闭"

@@ -11,6 +11,7 @@ import {
   Send,
   X,
   File,
+  AlertTriangle,
 } from 'lucide-react';
 import { problemCategories, trains, stations } from '../../data/mockData';
 import { channelMap, statusMap, urgencyMap } from '../../utils';
@@ -27,7 +28,8 @@ const channelIcons: Record<ChannelType, any> = {
 export default function Channel() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { workOrders, addWorkOrder } = useAppStore();
+  const { workOrders, addWorkOrder, currentRole } = useAppStore();
+  const canCreate = currentRole === 'service' || currentRole === 'manager';
   const [activeChannel, setActiveChannel] = useState<ChannelType>('hotline');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [formData, setFormData] = useState({
@@ -187,7 +189,8 @@ export default function Channel() {
               </h3>
             </div>
           </div>
-          <form onSubmit={handleSubmit} className="p-5">
+          {canCreate ? (
+            <form onSubmit={handleSubmit} className="p-5">
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
@@ -419,7 +422,13 @@ export default function Channel() {
                 提交工单
               </button>
             </div>
-          </form>
+            </form>
+          ) : (
+            <div className="p-12 text-center">
+              <AlertTriangle className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
+              <p className="text-neutral-500">您暂无工单录入权限，请联系管理员</p>
+            </div>
+          )}
         </div>
 
         <div className="space-y-6">
@@ -432,9 +441,9 @@ export default function Channel() {
                 <span className="text-4xl font-bold text-railway-600">{todayOrders.length}</span>
                 <p className="text-sm text-neutral-500 mt-1">件工单</p>
               </div>
-              <div className="grid grid-cols-3 gap-2 mt-4 text-center">
+              <div className="grid grid-cols-4 gap-2 mt-4 text-center">
                 <div className="p-2 bg-neutral-50 rounded">
-                  <p className="text-lg font-semibold text-neutral-700">{todayByChannel.hotline + todayByChannel.wechat + todayByChannel.app}</p>
+                  <p className="text-lg font-semibold text-neutral-700">{todayByChannel.hotline}</p>
                   <p className="text-xs text-neutral-500">热线</p>
                 </div>
                 <div className="p-2 bg-neutral-50 rounded">
@@ -442,8 +451,12 @@ export default function Channel() {
                   <p className="text-xs text-neutral-500">网页</p>
                 </div>
                 <div className="p-2 bg-neutral-50 rounded">
-                  <p className="text-lg font-semibold text-neutral-700">0</p>
-                  <p className="text-xs text-neutral-500">其他</p>
+                  <p className="text-lg font-semibold text-neutral-700">{todayByChannel.wechat}</p>
+                  <p className="text-xs text-neutral-500">微信</p>
+                </div>
+                <div className="p-2 bg-neutral-50 rounded">
+                  <p className="text-lg font-semibold text-neutral-700">{todayByChannel.app}</p>
+                  <p className="text-xs text-neutral-500">APP</p>
                 </div>
               </div>
             </div>

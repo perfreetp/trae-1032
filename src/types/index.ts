@@ -3,6 +3,48 @@ export type UrgencyLevel = 'normal' | 'urgent' | 'critical';
 export type ChannelType = 'hotline' | 'web' | 'wechat' | 'app';
 export type SatisfactionLevel = 1 | 2 | 3 | 4 | 5;
 export type RectifyStatus = 'pending' | 'rectifying' | 'reviewing' | 'closed';
+export type UserRole = 'service' | 'reviewer' | 'manager';
+export type FollowUpStatus = 'pending' | 'completed';
+export type TimeWarningType = 'normal' | 'warning' | 'overdue';
+export type ActionType =
+  | 'create'
+  | 'assign'
+  | 'batch_assign'
+  | 'reply'
+  | 'review'
+  | 'rectify_confirm'
+  | 'rectify_measure'
+  | 'rectify_close'
+  | 'followup_create'
+  | 'followup_complete';
+
+export interface OperationLog {
+  id: string;
+  orderId: string;
+  action: ActionType;
+  actionName: string;
+  operator: string;
+  operatorRole: string;
+  createTime: string;
+  remark?: string;
+  details?: Record<string, any>;
+}
+
+export interface FollowUpTask {
+  id: string;
+  reviewId: string;
+  orderId: string;
+  orderTitle: string;
+  passengerName?: string;
+  assignee: string;
+  deadline: string;
+  remark: string;
+  createBy: string;
+  status: FollowUpStatus;
+  createTime: string;
+  completeTime?: string;
+  result?: string;
+}
 
 export interface Attachment {
   id: string;
@@ -67,6 +109,7 @@ export interface RectifyTask {
   measure?: string;
   status: RectifyStatus;
   deadline: string;
+  createTime: string;
   assignTime?: string;
   completeTime?: string;
   reviewer?: string;
