@@ -1,0 +1,356 @@
+import type {
+  WorkOrder,
+  Review,
+  RectifyTask,
+  Department,
+  ServiceStandard,
+  ReplyTemplate,
+  TrendData,
+  CategoryData,
+  DashboardStats,
+} from '../types';
+
+export const departments: Department[] = [
+  { id: '1', name: '客运服务部', manager: '张主任' },
+  { id: '2', name: '车站管理部', manager: '李主任' },
+  { id: '3', name: '车辆段', manager: '王主任' },
+  { id: '4', name: '信息技术部', manager: '赵主任' },
+  { id: '5', name: '安全保卫部', manager: '刘主任' },
+];
+
+export const workOrders: WorkOrder[] = [
+  {
+    id: 'WO20240606001',
+    title: 'G1234次列车空调故障投诉',
+    channel: 'hotline',
+    passengerName: '王先生',
+    passengerPhone: '138****1234',
+    trainNo: 'G1234',
+    station: '北京南站',
+    category: '车辆设施',
+    urgency: 'urgent',
+    status: 'processing',
+    createTime: '2024-06-06 09:30:00',
+    deadline: '2024-06-06 17:30:00',
+    content: '旅客反映乘坐G1234次列车时，5号车厢空调不制冷，车厢内温度过高，要求给予解释和处理。',
+    assignee: '李坐席',
+    department: '车辆段',
+  },
+  {
+    id: 'WO20240606002',
+    title: '北京站候车室座椅不足咨询',
+    channel: 'web',
+    passengerName: '李女士',
+    passengerPhone: '139****5678',
+    station: '北京站',
+    category: '车站服务',
+    urgency: 'normal',
+    status: 'replied',
+    createTime: '2024-06-06 10:15:00',
+    deadline: '2024-06-07 10:15:00',
+    content: '旅客反映北京站候车室座椅数量不足，高峰期很多旅客站着等车，建议增加座椅。',
+    assignee: '王坐席',
+    department: '车站管理部',
+  },
+  {
+    id: 'WO20240606003',
+    title: '12306APP购票失败问题',
+    channel: 'app',
+    passengerName: '张先生',
+    passengerPhone: '137****9012',
+    category: '票务服务',
+    urgency: 'critical',
+    status: 'pending',
+    createTime: '2024-06-06 11:00:00',
+    deadline: '2024-06-06 14:00:00',
+    content: '旅客多次尝试在12306APP上购买G89次列车车票均失败，提示系统错误，现已影响出行计划。',
+  },
+  {
+    id: 'WO20240605001',
+    title: '列车晚点赔偿咨询',
+    channel: 'wechat',
+    passengerName: '陈先生',
+    passengerPhone: '136****3456',
+    trainNo: 'D5678',
+    station: '上海虹桥站',
+    category: '票务服务',
+    urgency: 'normal',
+    status: 'closed',
+    createTime: '2024-06-05 14:20:00',
+    deadline: '2024-06-06 14:20:00',
+    content: '旅客咨询D5678次列车晚点2小时是否有赔偿，如何申请。',
+    assignee: '赵坐席',
+    department: '客运服务部',
+  },
+  {
+    id: 'WO20240605002',
+    title: '高铁站无障碍设施不完善投诉',
+    channel: 'hotline',
+    passengerName: '刘女士',
+    passengerPhone: '135****7890',
+    station: '广州南站',
+    category: '车站服务',
+    urgency: 'urgent',
+    status: 'assigned',
+    createTime: '2024-06-05 16:45:00',
+    deadline: '2024-06-06 16:45:00',
+    content: '肢体残疾旅客反映广州南站无障碍电梯经常停运，无障碍通道被占用，出行非常不便。',
+    assignee: '孙坐席',
+    department: '车站管理部',
+  },
+  {
+    id: 'WO20240605003',
+    title: '餐车食品价格过高投诉',
+    channel: 'web',
+    passengerName: '周先生',
+    passengerPhone: '134****2345',
+    trainNo: 'G2345',
+    category: '餐饮服务',
+    urgency: 'normal',
+    status: 'processing',
+    createTime: '2024-06-05 08:30:00',
+    deadline: '2024-06-06 08:30:00',
+    content: '旅客反映G2345次列车餐车盒饭价格过高，一份普通盒饭要65元，希望能合理定价。',
+    assignee: '钱坐席',
+    department: '客运服务部',
+  },
+  {
+    id: 'WO20240604001',
+    title: '安检排队时间过长',
+    channel: 'hotline',
+    passengerName: '吴先生',
+    passengerPhone: '133****6789',
+    station: '深圳北站',
+    category: '安全检查',
+    urgency: 'normal',
+    status: 'closed',
+    createTime: '2024-06-04 07:50:00',
+    deadline: '2024-06-05 07:50:00',
+    content: '旅客反映早高峰期间深圳北站安检排队超过40分钟，差点误车，建议增加安检通道。',
+    assignee: '郑坐席',
+    department: '安全保卫部',
+  },
+  {
+    id: 'WO20240604002',
+    title: '遗失物品查找',
+    channel: 'web',
+    passengerName: '孙女士',
+    passengerPhone: '132****0123',
+    trainNo: 'G3456',
+    station: '杭州东站',
+    category: '失物招领',
+    urgency: 'urgent',
+    status: 'replied',
+    createTime: '2024-06-04 18:20:00',
+    deadline: '2024-06-05 18:20:00',
+    content: '旅客在G3456次列车上遗失一个黑色双肩包，内有笔记本电脑和重要文件，请求协助查找。',
+    assignee: '冯坐席',
+    department: '客运服务部',
+  },
+];
+
+export const reviews: Review[] = [
+  {
+    id: 'R001',
+    orderId: 'WO20240605001',
+    satisfaction: 5,
+    comment: '客服解答非常专业耐心，问题得到了圆满解决。',
+    reviewTime: '2024-06-06 09:00:00',
+    isRepeat: false,
+  },
+  {
+    id: 'R002',
+    orderId: 'WO20240604001',
+    satisfaction: 3,
+    comment: '问题已记录，但未见明显改善。',
+    reviewTime: '2024-06-05 16:30:00',
+    isRepeat: false,
+  },
+  {
+    id: 'R003',
+    orderId: 'WO20240604002',
+    satisfaction: 4,
+    comment: '找回速度很快，感谢工作人员。',
+    reviewTime: '2024-06-05 10:15:00',
+    isRepeat: false,
+  },
+  {
+    id: 'R004',
+    orderId: 'WO20240606002',
+    satisfaction: 2,
+    comment: '答复比较官方，感觉问题没有被重视。',
+    reviewTime: '2024-06-06 14:00:00',
+    isRepeat: true,
+  },
+];
+
+export const rectifyTasks: RectifyTask[] = [
+  {
+    id: 'RT001',
+    orderId: 'WO20240605002',
+    department: '车站管理部',
+    measure: '1. 对广州南站所有无障碍电梯进行全面检修；2. 清理无障碍通道占用物品；3. 设置专人巡查制度。',
+    status: 'rectifying',
+    deadline: '2024-06-10',
+  },
+  {
+    id: 'RT002',
+    orderId: 'WO20240606001',
+    department: '车辆段',
+    measure: '1. 立即对G1234次列车空调系统进行维修；2. 对全段列车空调进行预防性检修；3. 制定高温季节空调保障预案。',
+    status: 'reviewing',
+    deadline: '2024-06-08',
+    completeTime: '2024-06-07',
+    reviewer: '张主管',
+  },
+  {
+    id: 'RT003',
+    orderId: 'WO20240604001',
+    department: '安全保卫部',
+    measure: '1. 早高峰增加2条临时安检通道；2. 优化安检流程，提高通行效率；3. 在排队区域增设降温设备。',
+    status: 'closed',
+    deadline: '2024-06-07',
+    completeTime: '2024-06-06',
+    reviewer: '李主管',
+  },
+];
+
+export const serviceStandards: ServiceStandard[] = [
+  {
+    id: 'SS001',
+    category: '客运服务',
+    title: '旅客投诉处理时限标准',
+    content: '1. 一般投诉：24小时内响应，3个工作日内处理完毕；\n2. 紧急投诉：2小时内响应，24小时内处理完毕；\n3. 特急投诉：立即响应，4小时内处理完毕；\n4. 所有投诉需在处理完毕后3个工作日内完成回访。',
+    updateTime: '2024-05-01',
+  },
+  {
+    id: 'SS002',
+    category: '客运服务',
+    title: '列车服务质量标准',
+    content: '1. 列车空调温度夏季保持在24-28℃，冬季保持在18-22℃；\n2. 车内卫生每2小时巡查一次，垃圾及时清理；\n3. 开水供应不间断，卫生间保持清洁无异味；\n4. 乘务员做到微笑服务，有问必答。',
+    updateTime: '2024-04-15',
+  },
+  {
+    id: 'SS003',
+    category: '车站服务',
+    title: '车站候车服务标准',
+    content: '1. 候车室座椅数量满足高峰时段80%旅客就座需求；\n2. 饮水处24小时供应开水；\n3. 重点旅客候车区配备专人服务；\n4. 信息播报及时准确，每30分钟更新一次列车动态。',
+    updateTime: '2024-05-10',
+  },
+  {
+    id: 'SS004',
+    category: '票务服务',
+    title: '售票服务标准',
+    content: '1. 人工售票窗口排队不超过10人，等待时间不超过15分钟；\n2. 自助售票机故障率低于2%；\n3. 退票、改签业务办理时间不超过5分钟；\n4. 12306客服热线接通率不低于95%。',
+    updateTime: '2024-03-20',
+  },
+  {
+    id: 'SS005',
+    category: '安全检查',
+    title: '安检服务标准',
+    content: '1. 高峰期安检排队时间不超过20分钟；\n2. 安检人员文明执勤，礼貌待人；\n3. 旅客携带品检查做到逢包必检，逢疑必查；\n4. 安检设备定期维护，确保正常运行。',
+    updateTime: '2024-04-01',
+  },
+];
+
+export const replyTemplates: ReplyTemplate[] = [
+  {
+    id: 'T001',
+    title: '投诉受理确认模板',
+    category: '通用',
+    content: '尊敬的旅客您好！您反映的问题我们已受理，工单编号：{orderId}。我们将在{deadline}前给您答复，请您耐心等待。感谢您对铁路工作的监督与支持！',
+  },
+  {
+    id: 'T002',
+    title: '处理完成通知模板',
+    category: '通用',
+    content: '尊敬的旅客您好！关于您反映的"{title}"问题，我们已处理完毕。处理结果：{content}。如您还有其他问题，欢迎随时联系我们。祝您旅途愉快！',
+  },
+  {
+    id: 'T003',
+    title: '列车晚点致歉模板',
+    category: '票务服务',
+    content: '尊敬的旅客您好！对于{trainNo}次列车晚点给您带来的不便，我们深表歉意。列车晚点原因是：{reason}。我们已启动应急预案，全力做好后续服务工作。感谢您的理解与支持！',
+  },
+  {
+    id: 'T004',
+    title: '设施问题反馈模板',
+    category: '车辆设施',
+    content: '尊敬的旅客您好！感谢您反映的设施问题。我们已通知相关部门进行检修，将尽快恢复正常使用。对于给您带来的不便，我们深表歉意。欢迎您继续监督我们的工作！',
+  },
+];
+
+export const trendData7: TrendData[] = [
+  { date: '05-31', count: 28 },
+  { date: '06-01', count: 35 },
+  { date: '06-02', count: 42 },
+  { date: '06-03', count: 38 },
+  { date: '06-04', count: 45 },
+  { date: '06-05', count: 52 },
+  { date: '06-06', count: 48 },
+];
+
+export const trendData30: TrendData[] = Array.from({ length: 30 }, (_, i) => {
+  const date = new Date(2024, 5, i + 1);
+  return {
+    date: `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+    count: Math.floor(Math.random() * 30) + 25,
+  };
+});
+
+export const categoryData: CategoryData[] = [
+  { name: '票务服务', value: 85 },
+  { name: '车站服务', value: 72 },
+  { name: '车辆设施', value: 63 },
+  { name: '餐饮服务', value: 45 },
+  { name: '客运服务', value: 38 },
+  { name: '安全检查', value: 28 },
+  { name: '失物招领', value: 22 },
+  { name: '其他', value: 15 },
+];
+
+export const channelData: CategoryData[] = [
+  { name: '热线电话', value: 156 },
+  { name: '网站留言', value: 89 },
+  { name: '微信公众号', value: 67 },
+  { name: 'APP反馈', value: 45 },
+];
+
+export const satisfactionData: CategoryData[] = [
+  { name: '非常满意', value: 128 },
+  { name: '满意', value: 96 },
+  { name: '一般', value: 42 },
+  { name: '不满意', value: 18 },
+  { name: '非常不满意', value: 8 },
+];
+
+export const dashboardStats: DashboardStats = {
+  totalOrders: 357,
+  pendingOrders: 23,
+  processingRate: 93.6,
+  avgSatisfaction: 4.2,
+  todayOrders: 48,
+  overdueOrders: 3,
+};
+
+export const problemCategories = [
+  '票务服务',
+  '车站服务',
+  '车辆设施',
+  '餐饮服务',
+  '客运服务',
+  '安全检查',
+  '失物招领',
+  '其他',
+];
+
+export const trains = [
+  'G1', 'G2', 'G101', 'G102', 'G1234', 'G2345', 'G3456', 'G89',
+  'D5678', 'D101', 'D102', 'Z1', 'Z2', 'T1', 'T2', 'K1', 'K2',
+];
+
+export const stations = [
+  '北京南站', '北京站', '北京西站', '上海虹桥站', '上海站',
+  '广州南站', '广州站', '深圳北站', '杭州东站', '南京南站',
+  '成都东站', '重庆北站', '武汉站', '西安北站', '郑州东站',
+];
