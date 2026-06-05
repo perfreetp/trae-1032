@@ -25,6 +25,11 @@ import {
   File,
   UserPlus,
   MessageSquare,
+  Inbox,
+  Users,
+  ThumbsDown,
+  Wrench,
+  Award,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { statusMap, urgencyMap, channelMap, isOverdue } from '../../utils';
@@ -81,7 +86,7 @@ const StatCard = ({
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { workOrders, reviews, updateWorkOrder } = useAppStore();
+  const { workOrders, reviews, updateWorkOrder, rectifyTasks, followUpTasks } = useAppStore();
 
   const [trendDays, setTrendDays] = useState<7 | 30>(7);
   const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
@@ -121,6 +126,85 @@ export default function Dashboard() {
       overdueOrders: overdueOrders.length,
     };
   }, [workOrders, reviews]);
+
+  const closeLoopStats = useMemo(() => {
+    const createdNotAssigned = workOrders.filter((o) => o.status === 'pending').length;
+    const assignedNotReplied = workOrders.filter(
+      (o) => o.status === 'assigned' || o.status === 'processing'
+    ).length;
+    const repliedNotReviewed = workOrders.filter((o) => o.status === 'replied').length;
+    const reviewedOrders = reviews.map((r) => r.orderId);
+    const lowSatisfactionPending = followUpTasks.filter(
+      (t) => t.status === 'pending'
+    ).length;
+    const rectifyPendingClose = rectifyTasks.filter(
+      (t) => t.status === 'pending' || t.status === 'rectifying' || t.status === 'reviewing'
+    ).length;
+    const closedOrders = workOrders.filter((o) => o.status === 'closed').length;
+
+    return [
+      {
+        key: 'created_not_assigned',
+        label: '已新建未分派',
+        value: createdNotAssigned,
+        icon: Inbox,
+        color: 'bg-railway-100 text-railway-600',
+        bgColor: 'bg-railway-50',
+        route: '/process',
+        state: { status: 'pending' as const },
+      },
+      {
+        key: 'assigned_not_replied',
+        label: '已分派未答复',
+        value: assignedNotReplied,
+        icon: Users,
+        color: 'bg-warning-100 text-warning-600',
+        bgColor: 'bg-warning-50',
+        route: '/process',
+        state: { status: 'assigned' as const },
+      },
+      {
+        key: 'replied_not_reviewed',
+        label: '已答复未回访',
+        value: repliedNotReviewed,
+        icon: MessageSquare,
+        color: 'bg-info-100 text-info-600',
+        bgColor: 'bg-info-50',
+        route: '/review',
+        state: null,
+      },
+      {
+        key: 'low_satisfaction_pending',
+        label: '低满意度待跟进',
+        value: lowSatisfactionPending,
+        icon: ThumbsDown,
+        color: 'bg-danger-100 text-danger-600',
+        bgColor: 'bg-danger-50',
+        route: '/review',
+        state: null,
+      },
+      {
+        key: 'rectify_pending_close',
+        label: '整改待关闭',
+        value: rectifyPendingClose,
+        icon: Wrench,
+        color: 'bg-neutral-100 text-neutral-600',
+        bgColor: 'bg-neutral-50',
+        route: '/rectify',
+        state: null,
+      },
+      {
+        key: 'closed',
+        label: '已闭环',
+        value: closedOrders,
+        icon: Award,
+        color: 'bg-success-100 text-success-600',
+        bgColor: 'bg-success-50',
+        route: '/process',
+        state: { status: 'closed' as const },
+      },
+    ];
+  }, [workOrders, reviews, rectifyTasks, followUpTasks]);
 
   const trendData = useMemo(() => {
     const days = trendDays;
@@ -267,6 +351,78 @@ export default function Dashboard() {
           trendValue="-40%"
           color="bg-danger-500"
         />
+      </div>
+
+      <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
+        <div className="p-5 border-b border-neutral-200">
+          <h3 className="text-base font-semibold text-neutral-700">闭环完整度看板</h3>
+          <p className="text-sm text-neutral-500 mt-1">点击各状态可跳转到对应列表</p>
+        </div>
+        <div className="p-5">
+          <div className="grid grid-cols-6 gap-4">
+            {closeLoopStats.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => navigate(item.route, { state: item.state })}
+                  className={`p-4 rounded-lg ${item.bgColor} hover:shadow-md transition-all text-left group`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${item.color}`}>
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <span className="text-2xl font-bold text-neutral-800">{item.value}</span>
+                  </div>
+                  <p className="text-sm font-medium text-neutral-700 group-hover:text-railway-600 transition-colors">
+                    {item.label}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-4 pt-4 border-t border-neutral-100">
+            <div className="flex items-center">
+              <div className="flex-1 h-2 bg-neutral-100 rounded-full overflow-hidden flex">
+                {closeLoopStats.map((item, index) => {
+                  const total = closeLoopStats.reduce((sum, i) => sum + i.value, 0);
+                  const width = total > 0 ? (item.value / total) * 100 : 0;
+                  const colors: Record<string, string> = {
+                    created_not_assigned: 'bg-railway-500',
+                    assigned_not_replied: 'bg-warning-500',
+                    replied_not_reviewed: 'bg-info-500',
+                    low_satisfaction_pending: 'bg-danger-500',
+                    rectify_pending_close: 'bg-neutral-400',
+                    closed: 'bg-success-500',
+                  };
+                  return (
+                    <div
+                      key={item.key}
+                      className={`h-full ${colors[item.key]}`}
+                      style={{ width: `${width}%` }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-xs text-neutral-500">
+                共 {closeLoopStats.reduce((sum, i) => sum + i.value, 0)} 条工单
+              </span>
+              <span className="text-xs text-neutral-500">
+                闭环率：
+                {closeLoopStats.reduce((sum, i) => sum + i.value, 0) > 0
+                  ? (
+                      (closeLoopStats.find((i) => i.key === 'closed')?.value || 0) /
+                      closeLoopStats.reduce((sum, i) => sum + i.value, 0) *
+                      100
+                    ).toFixed(1)
+                  : 0}
+                %
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-6">

@@ -16,6 +16,9 @@ import type {
   OperationLog,
   FollowUpTask,
   ActionType,
+  UrgeRecord,
+  AuditLog,
+  AuditActionType,
 } from '../types';
 import {
   workOrders as initialWorkOrders,
@@ -26,6 +29,8 @@ import {
   serviceStandards as initialServiceStandards,
   operationLogs as initialOperationLogs,
   followUpTasks as initialFollowUpTasks,
+  urgeRecords as initialUrgeRecords,
+  auditLogs as initialAuditLogs,
 } from '../data/mockData';
 
 interface AppState {
@@ -37,6 +42,8 @@ interface AppState {
   serviceStandards: ServiceStandard[];
   operationLogs: OperationLog[];
   followUpTasks: FollowUpTask[];
+  urgeRecords: UrgeRecord[];
+  auditLogs: AuditLog[];
   currentRole: UserRole;
   setCurrentRole: (role: UserRole) => void;
   addWorkOrder: (order: Omit<WorkOrder, 'id' | 'createTime' | 'status'>, operator?: string) => void;
@@ -49,6 +56,8 @@ interface AppState {
   addOperationLog: (log: Omit<OperationLog, 'id' | 'createTime'>) => void;
   addFollowUpTask: (task: Omit<FollowUpTask, 'id' | 'createTime' | 'status'>) => void;
   updateFollowUpTask: (id: string, updates: Partial<FollowUpTask>) => void;
+  addUrgeRecord: (urge: Omit<UrgeRecord, 'id' | 'createTime'>) => void;
+  addAuditLog: (log: Omit<AuditLog, 'id' | 'createTime'>) => void;
   resetData: () => void;
 }
 
@@ -75,6 +84,23 @@ const actionNameMap: Record<ActionType, string> = {
   rectify_close: '复核关闭整改',
   followup_create: '创建二次跟进',
   followup_complete: '完成二次跟进',
+  urge: '发起催办',
+};
+
+const auditActionNameMap: Record<AuditActionType, string> = {
+  role_switch: '切换角色',
+  unauthorized_access: '尝试访问无权页面',
+  assign: '分派工单',
+  batch_assign: '批量分派工单',
+  reply: '提交答复',
+  review: '旅客回访',
+  rectify_confirm: '确认整改责任',
+  rectify_measure: '提交整改措施',
+  rectify_close: '复核关闭整改',
+  export_report: '导出质量报告',
+  urge: '发起催办',
+  followup_create: '创建二次跟进',
+  followup_complete: '完成二次跟进',
 };
 
 const roleNameMap: Record<UserRole, string> = {
@@ -94,10 +120,21 @@ export const useAppStore = create<AppState>()(
       serviceStandards: initialServiceStandards,
       operationLogs: initialOperationLogs,
       followUpTasks: initialFollowUpTasks,
+      urgeRecords: initialUrgeRecords,
+      auditLogs: initialAuditLogs,
       currentRole: 'manager',
 
       setCurrentRole: (role) => {
+        const oldRole = get().currentRole;
         set({ currentRole: role });
+        get().addAuditLog({
+          action: 'role_switch',
+          actionName: auditActionNameMap.role_switch,
+          operator: '当前用户',
+          operatorRole: oldRole,
+          targetRole: role,
+          result: 'success',
+        });
       },
 
       addWorkOrder: (order, operator = '系统') => {
@@ -260,7 +297,52 @@ export const useAppStore = create<AppState>()(
             remark: '二次跟进任务完成',
             details: { followUpId: id, result: updates.result },
           });
+          get().addAuditLog({
+            action: 'followup_complete',
+            actionName: auditActionNameMap.followup_complete,
+            operator: task.assignee,
+            operatorRole: get().currentRole,
+            orderId: task.orderId,
+            result: 'success',
+            details: { followUpId: id },
+          });
         }
+      },
+
+      addUrgeRecord: (urge) => {
+        const newUrge: UrgeRecord = {
+          ...urge,
+          id: generateId('UR'),
+          createTime: formatDateTime(),
+        };
+        set({ urgeRecords: [newUrge, ...get().urgeRecords] });
+        get().addOperationLog({
+          orderId: newUrge.orderId,
+          action: 'urge',
+          actionName: actionNameMap.urge,
+          operator: newUrge.operator,
+          operatorRole: roleNameMap[get().currentRole],
+          remark: `催办对象：${newUrge.target}，期望完成：${newUrge.expectedTime}`,
+          details: { urgeId: newUrge.id, target: newUrge.target },
+        });
+        get().addAuditLog({
+          action: 'urge',
+          actionName: auditActionNameMap.urge,
+          operator: newUrge.operator,
+          operatorRole: get().currentRole,
+          orderId: newUrge.orderId,
+          result: 'success',
+          details: { urgeId: newUrge.id },
+        });
+      },
+
+      addAuditLog: (log) => {
+        const newLog: AuditLog = {
+          ...log,
+          id: generateId('AUD'),
+          createTime: formatDateTime(),
+        };
+        set({ auditLogs: [newLog, ...get().auditLogs] });
       },
 
       resetData: () => {
@@ -273,6 +355,8 @@ export const useAppStore = create<AppState>()(
           serviceStandards: initialServiceStandards,
           operationLogs: initialOperationLogs,
           followUpTasks: initialFollowUpTasks,
+          urgeRecords: initialUrgeRecords,
+          auditLogs: initialAuditLogs,
           currentRole: 'manager',
         });
       },

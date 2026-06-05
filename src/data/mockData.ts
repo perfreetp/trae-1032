@@ -10,6 +10,8 @@ import type {
   DashboardStats,
   OperationLog,
   FollowUpTask,
+  UrgeRecord,
+  AuditLog,
 } from '../types';
 
 export const departments: Department[] = [
@@ -288,8 +290,45 @@ export const followUpTasks: FollowUpTask[] = [
     deadline: '2024-06-08',
     remark: '旅客满意度较低且为重复投诉，需要二次跟进了解具体情况，做好解释安抚工作。',
     createBy: '管理员',
+    reason: '低满意度回访',
     status: 'pending',
     createTime: '2024-06-06 15:00:00',
+  },
+];
+
+export const urgeRecords: UrgeRecord[] = [
+  {
+    id: 'UR001',
+    orderId: 'WO20240606003',
+    orderTitle: '12306APP购票失败问题',
+    target: '信息技术部-赵工',
+    description: '该工单即将超时，请尽快处理并回复旅客',
+    expectedTime: '2024-06-06 16:00:00',
+    operator: '王主管',
+    createTime: '2024-06-06 13:30:00',
+  },
+];
+
+export const auditLogs: AuditLog[] = [
+  {
+    id: 'AUD001',
+    action: 'role_switch',
+    actionName: '切换角色',
+    operator: '当前用户',
+    operatorRole: 'manager',
+    targetRole: 'service',
+    result: 'success',
+    createTime: '2024-06-06 09:00:00',
+  },
+  {
+    id: 'AUD002',
+    action: 'assign',
+    actionName: '分派工单',
+    operator: '李坐席',
+    operatorRole: 'service',
+    orderId: 'WO20240606001',
+    result: 'success',
+    createTime: '2024-06-06 09:45:00',
   },
 ];
 

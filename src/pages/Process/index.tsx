@@ -18,6 +18,9 @@ import {
   AlertTriangle,
   Timer,
   History,
+  CheckCircle as CheckCircleIcon,
+  Bell,
+  UserCheck,
 } from 'lucide-react';
 import { useAppStore, formatDateTime } from '../../store/useAppStore';
 import { replyTemplates, problemCategories, departments } from '../../data/mockData';
@@ -35,7 +38,15 @@ export default function Process() {
   const location = useLocation();
   const locationState = location.state as { searchKeyword?: string; openOrderId?: string } | null;
 
-  const { workOrders, updateWorkOrder, batchAssignWorkOrders, operationLogs, currentRole } = useAppStore();
+  const {
+    workOrders,
+    updateWorkOrder,
+    batchAssignWorkOrders,
+    operationLogs,
+    currentRole,
+    urgeRecords,
+    addUrgeRecord,
+  } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<WorkOrderStatus | 'all'>('all');
   const [timeWarningFilter, setTimeWarningFilter] = useState<'all' | 'warning' | 'overdue' | 'normal'>('all');
@@ -53,6 +64,10 @@ export default function Process() {
   const [batchAssignPerson, setBatchAssignPerson] = useState('');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showUrgeModal, setShowUrgeModal] = useState(false);
+  const [urgeTarget, setUrgeTarget] = useState('');
+  const [urgeDescription, setUrgeDescription] = useState('');
+  const [urgeExpectedTime, setUrgeExpectedTime] = useState('');
 
   const [filters, setFilters] = useState({
     channel: '' as ChannelType | '',
@@ -79,8 +94,8 @@ export default function Process() {
     }
   }, [workOrders, selectedOrder?.id]);
 
-  const getTimeWarningType = (deadline: string, status: WorkOrderStatus): 'normal' | 'warning' | 'overdue' => {
-    if (status === 'closed' || status === 'replied') return 'normal';
+  const getTimeWarningType = (deadline: string, status: WorkOrderStatus): 'normal' | 'warning' | 'overdue' | 'completed' => {
+    if (status === 'closed' || status === 'replied') return 'completed';
     const now = new Date();
     const deadlineDate = new Date(deadline);
     const diffHours = (deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60);
@@ -157,7 +172,16 @@ export default function Process() {
     }
 
     if (timeWarningFilter !== 'all') {
-      result = result.filter((o) => getTimeWarningType(o.deadline, o.status) === timeWarningFilter);
+      if (timeWarningFilter === 'normal') {
+        result = result.filter(
+          (o) =>
+            o.status !== 'closed' &&
+            o.status !== 'replied' &&
+            getTimeWarningType(o.deadline, o.status) === 'normal'
+        );
+      } else {
+        result = result.filter((o) => getTimeWarningType(o.deadline, o.status) === timeWarningFilter);
+      }
     }
 
     return result;
@@ -186,6 +210,33 @@ export default function Process() {
     };
   }, [workOrders]);
 
+  const orderUrges = useMemo(() => {
+    if (!selectedOrder) return [];
+    return urgeRecords.filter((u) => u.orderId === selectedOrder.id);
+  }, [selectedOrder, urgeRecords]);
+
+  const canUrge = currentRole === 'service' || currentRole === 'manager';
+
+  const openUrgeModal = () => {
+    setUrgeTarget('');
+    setUrgeDescription('');
+    setUrgeExpectedTime('');
+    setShowUrgeModal(true);
+  };
+
+  const submitUrge = () => {
+    if (!selectedOrder || !urgeTarget || !urgeExpectedTime) return;
+    addUrgeRecord({
+      orderId: selectedOrder.id,
+      orderTitle: selectedOrder.title,
+      target: urgeTarget,
+      description: urgeDescription,
+      expectedTime: urgeExpectedTime,
+      operator: '当前用户',
+    });
+    setShowUrgeModal(false);
+  };
+
   const tabs: { key: WorkOrderStatus | 'all'; label: string }[] = [
     { key: 'all', label: '全部' },
     { key: 'pending', label: '待受理' },
@@ -199,7 +250,7 @@ export default function Process() {
     { key: 'all', label: '全部', icon: Clock },
     { key: 'warning', label: '即将超时', icon: Timer },
     { key: 'overdue', label: '已超时', icon: AlertTriangle },
-    { key: 'normal', label: '正常', icon: CheckCircle },
+    { key: 'normal', label: '正常', icon: CheckCircleIcon },
   ];
 
   const canAssign = currentRole === 'service' || currentRole === 'manager';
@@ -695,6 +746,35 @@ export default function Process() {
                   )}
                 </div>
               )}
+              {orderUrges.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-sm text-neutral-500 mb-2 flex items-center">
+                    <Bell className="w-4 h-4 mr-1.5 text-warning-500" />
+                    催办记录
+                  </p>
+                  <div className="space-y-2">
+                    {orderUrges.map((urge) => (
+                      <div
+                        key={urge.id}
+                        className="p-3 bg-warning-50 rounded-md border border-warning-100"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-medium text-neutral-700">
+                            催办对象：{urge.target}
+                          </p>
+                          <span className="text-xs text-neutral-400">{urge.createTime}</span>
+                        </div>
+                        {urge.description && (
+                          <p className="text-sm text-neutral-600 mb-1">{urge.description}</p>
+                        )}
+                        <p className="text-xs text-neutral-500">
+                          期望完成：{urge.expectedTime} | 操作人：{urge.operator}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {orderLogs.length > 0 && (
                 <div>
                   <p className="text-sm text-neutral-500 mb-3 flex items-center">
@@ -761,6 +841,18 @@ export default function Process() {
                   提交答复
                 </button>
               )}
+              {canUrge &&
+                selectedOrder.status !== 'closed' &&
+                selectedOrder.status !== 'replied' &&
+                getTimeWarningType(selectedOrder.deadline, selectedOrder.status) !== 'normal' && (
+                  <button
+                    onClick={openUrgeModal}
+                    className="px-4 py-2 text-sm text-white bg-warning-500 rounded-md hover:bg-warning-600 transition-colors flex items-center"
+                  >
+                    <Bell className="w-4 h-4 mr-2" />
+                    发起催办
+                  </button>
+                )}
             </div>
           </div>
         </div>
@@ -1141,6 +1233,84 @@ export default function Process() {
                   确定
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUrgeModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white rounded-lg w-[550px] animate-slide-up">
+            <div className="p-5 border-b border-neutral-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-neutral-700">发起催办</h3>
+              <button
+                onClick={() => setShowUrgeModal(false)}
+                className="p-1 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 rounded transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="p-3 bg-warning-50 rounded-md border border-warning-100">
+                <p className="text-sm text-neutral-500">当前工单</p>
+                <p className="text-sm font-medium text-neutral-700 mt-1">{selectedOrder.title}</p>
+                <p className="text-xs text-neutral-500 mt-1">{selectedOrder.id}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  催办对象 <span className="text-danger-500">*</span>
+                </label>
+                <div className="flex items-center px-3 py-2 bg-neutral-50 rounded-md border border-neutral-200">
+                  <UserCheck className="w-4 h-4 text-neutral-400 mr-2" />
+                  <input
+                    type="text"
+                    value={urgeTarget}
+                    onChange={(e) => setUrgeTarget(e.target.value)}
+                    placeholder="请输入催办对象（如：信息技术部-张工）"
+                    className="flex-1 bg-transparent outline-none text-sm text-neutral-700"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  期望完成时间 <span className="text-danger-500">*</span>
+                </label>
+                <div className="flex items-center px-3 py-2 bg-neutral-50 rounded-md border border-neutral-200">
+                  <Clock className="w-4 h-4 text-neutral-400 mr-2" />
+                  <input
+                    type="datetime-local"
+                    value={urgeExpectedTime}
+                    onChange={(e) => setUrgeExpectedTime(e.target.value)}
+                    className="flex-1 bg-transparent outline-none text-sm text-neutral-700"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">催办说明</label>
+                <textarea
+                  value={urgeDescription}
+                  onChange={(e) => setUrgeDescription(e.target.value)}
+                  rows={4}
+                  placeholder="请输入催办说明..."
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-warning-500 focus:border-transparent resize-none"
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-neutral-200 flex justify-end space-x-3">
+              <button
+                onClick={() => setShowUrgeModal(false)}
+                className="px-4 py-2 text-sm text-neutral-600 bg-neutral-100 rounded-md hover:bg-neutral-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={submitUrge}
+                disabled={!urgeTarget.trim() || !urgeExpectedTime}
+                className="px-4 py-2 text-sm text-white bg-warning-500 rounded-md hover:bg-warning-600 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Bell className="w-4 h-4 mr-2" />
+                确认催办
+              </button>
             </div>
           </div>
         </div>

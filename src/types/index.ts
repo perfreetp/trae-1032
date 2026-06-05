@@ -6,6 +6,21 @@ export type RectifyStatus = 'pending' | 'rectifying' | 'reviewing' | 'closed';
 export type UserRole = 'service' | 'reviewer' | 'manager';
 export type FollowUpStatus = 'pending' | 'completed';
 export type TimeWarningType = 'normal' | 'warning' | 'overdue';
+export type CloseLoopStatus = 'created_not_assigned' | 'assigned_not_replied' | 'replied_not_reviewed' | 'low_satisfaction_pending' | 'rectify_pending_close' | 'closed';
+export type AuditActionType =
+  | 'role_switch'
+  | 'unauthorized_access'
+  | 'assign'
+  | 'batch_assign'
+  | 'reply'
+  | 'review'
+  | 'rectify_confirm'
+  | 'rectify_measure'
+  | 'rectify_close'
+  | 'export_report'
+  | 'urge'
+  | 'followup_create'
+  | 'followup_complete';
 export type ActionType =
   | 'create'
   | 'assign'
@@ -16,7 +31,8 @@ export type ActionType =
   | 'rectify_measure'
   | 'rectify_close'
   | 'followup_create'
-  | 'followup_complete';
+  | 'followup_complete'
+  | 'urge';
 
 export interface OperationLog {
   id: string;
@@ -40,10 +56,36 @@ export interface FollowUpTask {
   deadline: string;
   remark: string;
   createBy: string;
+  reason?: string;
   status: FollowUpStatus;
   createTime: string;
   completeTime?: string;
   result?: string;
+}
+
+export interface UrgeRecord {
+  id: string;
+  orderId: string;
+  orderTitle: string;
+  target: string;
+  description: string;
+  expectedTime: string;
+  operator: string;
+  createTime: string;
+}
+
+export interface AuditLog {
+  id: string;
+  action: AuditActionType;
+  actionName: string;
+  operator: string;
+  operatorRole: UserRole;
+  targetRole?: UserRole;
+  targetPage?: string;
+  orderId?: string;
+  result: 'success' | 'denied';
+  createTime: string;
+  details?: Record<string, any>;
 }
 
 export interface Attachment {

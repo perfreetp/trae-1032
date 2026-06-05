@@ -8,6 +8,7 @@ import {
   Wrench,
   BarChart3,
   Train,
+  Shield,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAppStore } from '../../store/useAppStore';
@@ -21,6 +22,7 @@ const allMenuItems = [
   { path: '/standards', label: '服务标准', icon: BookOpen, roles: ['service', 'reviewer', 'manager'] as UserRole[] },
   { path: '/rectify', label: '整改跟踪', icon: Wrench, roles: ['manager'] as UserRole[] },
   { path: '/analysis', label: '质量分析', icon: BarChart3, roles: ['manager'] as UserRole[] },
+  { path: '/audit', label: '权限审计', icon: Shield, roles: ['manager'] as UserRole[] },
 ];
 
 export default function Sidebar() {
