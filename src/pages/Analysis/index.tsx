@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   BarChart,
   Bar,
@@ -21,10 +21,21 @@ import {
   BarChart3,
   FileText,
   ChevronDown,
+  CheckCircle,
 } from 'lucide-react';
-import { categoryData, trendData30, channelData, workOrders, reviews } from '../../data/mockData';
+import { useAppStore } from '../../store/useAppStore';
+import { channelMap, urgencyMap } from '../../utils';
 
-const COLORS = ['#165DFF', '#FF7D00', '#00B42A', '#F53F3F', '#722ED1', '#14C9C9', '#F7BA1E', '#F5319D'];
+const COLORS = [
+  '#165DFF',
+  '#FF7D00',
+  '#00B42A',
+  '#F53F3F',
+  '#722ED1',
+  '#14C9C9',
+  '#F7BA1E',
+  '#F5319D',
+];
 
 const monthlyData = [
   { month: '1月', 工单量: 280, 满意度: 4.0 },
@@ -44,41 +55,187 @@ const deptData = [
 ];
 
 export default function Analysis() {
+  const { workOrders, reviews, rectifyTasks } = useAppStore();
   const [selectedMonth, setSelectedMonth] = useState('2024年6月');
   const [showMonthDropdown, setShowMonthDropdown] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const months = ['2024年6月', '2024年5月', '2024年4月', '2024年3月', '2024年2月', '2024年1月'];
+
+  const categoryData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    workOrders.forEach((o) => {
+      counts[o.category] = (counts[o.category] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+  }, [workOrders]);
+
+  const channelData = useMemo(() => {
+    const counts: Record<string, number> = { 热线: 0, 网页: 0, 微信: 0, APP: 0 };
+    workOrders.forEach((o) => {
+      if (o.channel === 'hotline') counts['热线']++;
+      else if (o.channel === 'web') counts['网页']++;
+      else if (o.channel === 'wechat') counts['微信']++;
+      else counts['APP']++;
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [workOrders]);
+
+  const satisfactionData = useMemo(() => {
+    if (reviews.length === 0) return 4.2;
+    const sum = reviews.reduce((acc, r) => acc + r.satisfaction, 0);
+    return (sum / reviews.length).toFixed(1);
+  }, [reviews]);
+
+  const completionRate = useMemo(() => {
+    const closed = workOrders.filter((o) => o.status === 'closed' || o.status === 'replied').length;
+    const total = workOrders.length;
+    return total > 0 ? ((closed / total) * 100).toFixed(1) : '0';
+  }, [workOrders]);
+
+  const repeatRate = useMemo(() => {
+    const repeat = reviews.filter((r) => r.isRepeat).length;
+    const total = reviews.length;
+    return total > 0 ? ((repeat / total) * 100).toFixed(1) : '0';
+  }, [reviews]);
+
+  const rectifyCompletionRate = useMemo(() => {
+    const closed = rectifyTasks.filter((t) => t.status === 'closed').length;
+    const total = rectifyTasks.length;
+    return total > 0 ? ((closed / total) * 100).toFixed(1) : '0';
+  }, [rectifyTasks]);
 
   const keyMetrics = [
     {
       label: '工单总量',
-      value: '357',
+      value: workOrders.length,
       change: '+12.5%',
       trend: 'up',
       description: '较上月',
     },
     {
       label: '按时完成率',
-      value: '93.6%',
+      value: completionRate + '%',
       change: '+2.1%',
       trend: 'up',
       description: '较上月',
     },
     {
       label: '平均满意度',
-      value: '4.2分',
+      value: satisfactionData + '分',
       change: '+0.1',
       trend: 'up',
       description: '较上月',
     },
     {
       label: '重复投诉率',
-      value: '3.2%',
+      value: repeatRate + '%',
       change: '-1.5%',
       trend: 'down',
       description: '较上月',
     },
   ];
+
+  const hotIssues = categoryData.slice(0, 5);
+
+  const generateReport = () => {
+    setExporting(true);
+
+    const reportContent = `
+═══════════════════════════════════════════════════════════════
+            铁路旅客服务质量月度分析报告
+═══════════════════════════════════════════════════════════════
+
+报告月份：${selectedMonth}
+生成时间：${new Date().toLocaleString('zh-CN')}
+
+───────────────────────────────────────────────────────────────
+一、总体情况
+───────────────────────────────────────────────────────────────
+本月共受理旅客咨询投诉 ${workOrders.length} 件，较上月增长 12.5%。
+
+渠道分布情况：
+${channelData
+  .map(
+    (c, i) =>
+      `  ${i + 1}. ${c.name}：${c.value} 件（占比 ${
+        workOrders.length > 0
+          ? ((c.value / workOrders.length) * 100).toFixed(1)
+          : '0'
+      }%）`
+  )
+  .join('\n')}
+
+按时处理率：${completionRate}%，较上月提升 2.1 个百分点。
+
+───────────────────────────────────────────────────────────────
+二、旅客满意度
+───────────────────────────────────────────────────────────────
+本月共完成回访 ${reviews.length} 件，平均满意度 ${satisfactionData} 分，较上月提升 0.1 分。
+
+满意度分布：
+  非常满意：${reviews.filter((r) => r.satisfaction === 5).length} 人
+  满意：${reviews.filter((r) => r.satisfaction === 4).length} 人
+  一般：${reviews.filter((r) => r.satisfaction === 3).length} 人
+  不满意：${reviews.filter((r) => r.satisfaction === 2).length} 人
+  非常不满意：${reviews.filter((r) => r.satisfaction === 1).length} 人
+
+重复投诉：${reviews.filter((r) => r.isRepeat).length} 件，重复投诉率 ${repeatRate}%。
+
+───────────────────────────────────────────────────────────────
+三、热点问题排行 TOP5
+───────────────────────────────────────────────────────────────
+${hotIssues
+  .map(
+    (item, index) =>
+      `  TOP${index + 1}：${item.name}（${item.value} 件，占比 ${
+        workOrders.length > 0
+          ? ((item.value / workOrders.length) * 100).toFixed(1)
+          : '0'
+      }%）`
+  )
+  .join('\n')}
+
+───────────────────────────────────────────────────────────────
+四、整改完成情况
+───────────────────────────────────────────────────────────────
+整改任务总数：${rectifyTasks.length} 件
+  待整改：${rectifyTasks.filter((t) => t.status === 'pending').length} 件
+  整改中：${rectifyTasks.filter((t) => t.status === 'rectifying').length} 件
+  待复核：${rectifyTasks.filter((t) => t.status === 'reviewing').length} 件
+  已关闭：${rectifyTasks.filter((t) => t.status === 'closed').length} 件
+  整改完成率：${rectifyCompletionRate}%
+
+───────────────────────────────────────────────────────────────
+五、改进措施与建议
+───────────────────────────────────────────────────────────────
+1. 加强车站无障碍设施巡检维护
+2. 优化12306系统稳定性，减少系统故障
+3. 增加列车空调预防性检修频次
+4. 加强客服人员培训，提升服务意识
+5. 建立热点问题快速响应机制
+6. 针对重复投诉问题，建立专项整改跟踪机制
+
+═══════════════════════════════════════════════════════════════
+                        报告结束
+═══════════════════════════════════════════════════════════════
+    `.trim();
+
+    const blob = new Blob([reportContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `铁路旅客服务质量报告_${selectedMonth}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setTimeout(() => setExporting(false), 1000);
+  };
 
   return (
     <div className="space-y-6">
@@ -104,7 +261,9 @@ export default function Analysis() {
                         setShowMonthDropdown(false);
                       }}
                       className={`w-full text-left px-4 py-2 text-sm hover:bg-neutral-50 transition-colors ${
-                        month === selectedMonth ? 'bg-railway-50 text-railway-600' : 'text-neutral-700'
+                        month === selectedMonth
+                          ? 'bg-railway-50 text-railway-600'
+                          : 'text-neutral-700'
                       }`}
                     >
                       {month}
@@ -114,9 +273,22 @@ export default function Analysis() {
               )}
             </div>
           </div>
-          <button className="flex items-center px-4 py-2 bg-railway-500 text-white text-sm rounded-md hover:bg-railway-600 transition-colors">
-            <Download className="w-4 h-4 mr-2" />
-            导出报告
+          <button
+            onClick={generateReport}
+            disabled={exporting}
+            className="flex items-center px-4 py-2 bg-railway-500 text-white text-sm rounded-md hover:bg-railway-600 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {exporting ? (
+              <>
+                <CheckCircle className="w-4 h-4 mr-2" />
+                导出成功
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 mr-2" />
+                导出报告
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -137,9 +309,7 @@ export default function Analysis() {
                   metric.trend === 'up' ? 'text-success-500' : 'text-danger-500'
                 }`}
               />
-              <span
-                className={metric.trend === 'up' ? 'text-success-500' : 'text-danger-500'}
-              >
+              <span className={metric.trend === 'up' ? 'text-success-500' : 'text-danger-500'}>
                 {metric.change}
               </span>
               <span className="text-neutral-400 ml-1">{metric.description}</span>
@@ -152,10 +322,19 @@ export default function Analysis() {
         <div className="bg-white rounded-lg p-5 shadow-sm border border-neutral-200">
           <h3 className="text-base font-semibold text-neutral-700 mb-4">热点问题排行 TOP10</h3>
           <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={categoryData} layout="vertical">
+            <BarChart
+              data={categoryData.length > 0 ? categoryData : [{ name: '暂无数据', value: 0 }]}
+              layout="vertical"
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E6EB" horizontal={false} />
               <XAxis type="number" tick={{ fontSize: 12 }} stroke="#86909C" />
-              <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} stroke="#86909C" width={80} />
+              <YAxis
+                dataKey="name"
+                type="category"
+                tick={{ fontSize: 12 }}
+                stroke="#86909C"
+                width={80}
+              />
               <Tooltip />
               <Bar dataKey="value" radius={[0, 4, 4, 0]} name="工单数量">
                 {categoryData.map((_, index) => (
@@ -260,13 +439,19 @@ export default function Analysis() {
             <div>
               <h4 className="text-sm font-semibold text-neutral-700 mb-2">一、总体情况</h4>
               <p className="text-sm text-neutral-600 leading-relaxed">
-                本月共受理旅客咨询投诉 {workOrders.length} 件，较上月增长 12.5%。其中热线电话 156 件，网站留言 89 件，微信公众号 67 件，APP 反馈 45 件。按时处理率 93.6%，较上月提升 2.1 个百分点。
+                本月共受理旅客咨询投诉 {workOrders.length} 件，较上月增长 12.5%。其中热线电话{' '}
+                {channelData.find((c) => c.name === '热线')?.value || 0} 件，网站留言{' '}
+                {channelData.find((c) => c.name === '网页')?.value || 0} 件，微信公众号{' '}
+                {channelData.find((c) => c.name === '微信')?.value || 0} 件，APP 反馈{' '}
+                {channelData.find((c) => c.name === 'APP')?.value || 0} 件。按时处理率 {completionRate}%
+                ，较上月提升 2.1 个百分点。
               </p>
             </div>
             <div>
               <h4 className="text-sm font-semibold text-neutral-700 mb-2">二、旅客满意度</h4>
               <p className="text-sm text-neutral-600 leading-relaxed">
-                本月共完成回访 {reviews.length} 件，平均满意度 4.2 分，较上月提升 0.1 分。其中非常满意 128 人，满意 96 人，一般 42 人，不满意及以下 26 人，整体满意度处于较好水平。
+                本月共完成回访 {reviews.length} 件，平均满意度 {satisfactionData} 分，较上月提升 0.1
+                分。整体满意度处于较好水平，重复投诉率 {repeatRate}%，较上月有所下降。
               </p>
             </div>
           </div>
@@ -274,13 +459,16 @@ export default function Analysis() {
             <div>
               <h4 className="text-sm font-semibold text-neutral-700 mb-2">三、主要问题分析</h4>
               <p className="text-sm text-neutral-600 leading-relaxed">
-                本月热点问题集中在票务服务（85件）、车站服务（72件）和车辆设施（63件）三个方面。其中票务问题主要集中在退票改签、系统故障；车站问题主要是候车环境、无障碍设施；车辆问题主要是空调故障、卫生清洁。
+                本月热点问题集中在{hotIssues.slice(0, 3).map((h) => h.name).join('、')}
+                等方面。需要重点关注并持续改进。
               </p>
             </div>
             <div>
               <h4 className="text-sm font-semibold text-neutral-700 mb-2">四、改进措施与建议</h4>
               <p className="text-sm text-neutral-600 leading-relaxed">
-                1. 加强车站无障碍设施巡检维护；2. 优化12306系统稳定性；3. 增加列车空调预防性检修频次；4. 加强客服人员培训，提升服务意识；5. 建立热点问题快速响应机制。
+                1. 加强车站无障碍设施巡检维护；2. 优化12306系统稳定性；3.
+                增加列车空调预防性检修频次；4. 加强客服人员培训，提升服务意识；5.
+                建立热点问题快速响应机制。
               </p>
             </div>
           </div>

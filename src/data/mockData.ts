@@ -153,6 +153,8 @@ export const reviews: Review[] = [
   {
     id: 'R001',
     orderId: 'WO20240605001',
+    orderTitle: '咨询退票政策',
+    passengerName: '张三',
     satisfaction: 5,
     comment: '客服解答非常专业耐心，问题得到了圆满解决。',
     reviewTime: '2024-06-06 09:00:00',
@@ -161,6 +163,8 @@ export const reviews: Review[] = [
   {
     id: 'R002',
     orderId: 'WO20240604001',
+    orderTitle: '投诉安检排队时间过长',
+    passengerName: '李四',
     satisfaction: 3,
     comment: '问题已记录，但未见明显改善。',
     reviewTime: '2024-06-05 16:30:00',
@@ -169,6 +173,8 @@ export const reviews: Review[] = [
   {
     id: 'R003',
     orderId: 'WO20240604002',
+    orderTitle: '求助寻找遗失物品',
+    passengerName: '王五',
     satisfaction: 4,
     comment: '找回速度很快，感谢工作人员。',
     reviewTime: '2024-06-05 10:15:00',
@@ -177,6 +183,8 @@ export const reviews: Review[] = [
   {
     id: 'R004',
     orderId: 'WO20240606002',
+    orderTitle: '投诉列车空调温度过低',
+    passengerName: '赵六',
     satisfaction: 2,
     comment: '答复比较官方，感觉问题没有被重视。',
     reviewTime: '2024-06-06 14:00:00',
@@ -188,7 +196,9 @@ export const rectifyTasks: RectifyTask[] = [
   {
     id: 'RT001',
     orderId: 'WO20240605002',
+    orderTitle: '投诉广州南站无障碍电梯故障',
     department: '车站管理部',
+    problemDescription: '旅客反映广州南站B10检票口附近无障碍电梯故障，轮椅旅客无法正常使用。',
     measure: '1. 对广州南站所有无障碍电梯进行全面检修；2. 清理无障碍通道占用物品；3. 设置专人巡查制度。',
     status: 'rectifying',
     deadline: '2024-06-10',
@@ -196,7 +206,9 @@ export const rectifyTasks: RectifyTask[] = [
   {
     id: 'RT002',
     orderId: 'WO20240606001',
+    orderTitle: '投诉G1234次列车空调故障',
     department: '车辆段',
+    problemDescription: 'G1234次列车3号车厢空调系统故障，车厢内温度过高，旅客强烈不满。',
     measure: '1. 立即对G1234次列车空调系统进行维修；2. 对全段列车空调进行预防性检修；3. 制定高温季节空调保障预案。',
     status: 'reviewing',
     deadline: '2024-06-08',
@@ -206,7 +218,9 @@ export const rectifyTasks: RectifyTask[] = [
   {
     id: 'RT003',
     orderId: 'WO20240604001',
+    orderTitle: '投诉安检排队时间过长',
     department: '安全保卫部',
+    problemDescription: '早高峰期间北京西站安检口排队时间超过30分钟，导致多名旅客误车。',
     measure: '1. 早高峰增加2条临时安检通道；2. 优化安检流程，提高通行效率；3. 在排队区域增设降温设备。',
     status: 'closed',
     deadline: '2024-06-07',

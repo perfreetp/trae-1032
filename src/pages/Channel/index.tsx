@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Phone,
   Globe,
@@ -8,10 +9,13 @@ import {
   Paperclip,
   Clock,
   Send,
+  X,
+  File,
 } from 'lucide-react';
-import { workOrders, problemCategories, trains, stations } from '../../data/mockData';
+import { problemCategories, trains, stations } from '../../data/mockData';
 import { channelMap, statusMap, urgencyMap } from '../../utils';
-import type { ChannelType, UrgencyLevel } from '../../types';
+import type { ChannelType, UrgencyLevel, Attachment } from '../../types';
+import { useAppStore } from '../../store/useAppStore';
 
 const channelIcons: Record<ChannelType, any> = {
   hotline: Phone,
@@ -21,7 +25,11 @@ const channelIcons: Record<ChannelType, any> = {
 };
 
 export default function Channel() {
+  const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { workOrders, addWorkOrder } = useAppStore();
   const [activeChannel, setActiveChannel] = useState<ChannelType>('hotline');
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [formData, setFormData] = useState({
     title: '',
     passengerName: '',
@@ -33,9 +41,48 @@ export default function Channel() {
     content: '',
   });
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      const newAttachments: Attachment[] = Array.from(files).map((file) => ({
+        id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        url: URL.createObjectURL(file),
+      }));
+      setAttachments([...attachments, ...newAttachments]);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments(attachments.filter((a) => a.id !== id));
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    alert('工单已提交！');
+    addWorkOrder({
+      title: formData.title,
+      passengerName: formData.passengerName,
+      passengerPhone: formData.passengerPhone,
+      trainNo: formData.trainNo || undefined,
+      station: formData.station || undefined,
+      category: formData.category,
+      urgency: formData.urgency,
+      channel: activeChannel,
+      content: formData.content,
+      attachments: attachments,
+      deadline: getDeadlineDate(formData.urgency),
+    });
     setFormData({
       title: '',
       passengerName: '',
@@ -46,6 +93,22 @@ export default function Channel() {
       urgency: 'normal',
       content: '',
     });
+    setAttachments([]);
+  };
+
+  const getDeadlineDate = (urgency: UrgencyLevel): string => {
+    const now = new Date();
+    switch (urgency) {
+      case 'critical':
+        now.setHours(now.getHours() + 4);
+        break;
+      case 'urgent':
+        now.setHours(now.getHours() + 24);
+        break;
+      default:
+        now.setDate(now.getDate() + 3);
+    }
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   };
 
   const getDeadlineHint = (urgency: UrgencyLevel) => {
@@ -57,6 +120,18 @@ export default function Channel() {
       default:
         return '3个工作日内处理';
     }
+  };
+
+  const todayOrders = workOrders.filter((o) => {
+    const today = new Date().toISOString().split('T')[0];
+    return o.createTime.startsWith(today);
+  });
+
+  const todayByChannel: Record<ChannelType, number> = {
+    hotline: todayOrders.filter((o) => o.channel === 'hotline').length,
+    web: todayOrders.filter((o) => o.channel === 'web').length,
+    wechat: todayOrders.filter((o) => o.channel === 'wechat').length,
+    app: todayOrders.filter((o) => o.channel === 'app').length,
   };
 
   return (
@@ -269,7 +344,18 @@ export default function Channel() {
               <label className="block text-sm font-medium text-neutral-700 mb-2">
                 附件上传
               </label>
-              <div className="border-2 border-dashed border-neutral-300 rounded-lg p-6 text-center hover:border-railway-400 transition-colors cursor-pointer">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+                accept=".jpg,.jpeg,.png,.gif,.pdf,.doc,.docx,.xls,.xlsx"
+              />
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-neutral-300 rounded-lg p-6 text-center hover:border-railway-400 transition-colors cursor-pointer bg-neutral-50 hover:bg-railway-50"
+              >
                 <Paperclip className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
                 <p className="text-sm text-neutral-500">
                   点击或拖拽文件到此处上传
@@ -278,11 +364,49 @@ export default function Channel() {
                   支持图片、PDF、Word文档，单个文件不超过10MB
                 </p>
               </div>
+              {attachments.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {attachments.map((att) => (
+                    <div
+                      key={att.id}
+                      className="flex items-center justify-between p-3 bg-neutral-50 rounded-md border border-neutral-200"
+                    >
+                      <div className="flex items-center flex-1 min-w-0">
+                        <File className="w-4 h-4 text-railway-500 mr-2 flex-shrink-0" />
+                        <span className="text-sm text-neutral-700 truncate">{att.name}</span>
+                        <span className="text-xs text-neutral-400 ml-2 flex-shrink-0">
+                          {formatFileSize(att.size)}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(att.id)}
+                        className="ml-2 p-1 hover:bg-neutral-200 rounded transition-colors"
+                      >
+                        <X className="w-4 h-4 text-neutral-500" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end">
               <button
                 type="button"
+                onClick={() => {
+                  setFormData({
+                    title: '',
+                    passengerName: '',
+                    passengerPhone: '',
+                    trainNo: '',
+                    station: '',
+                    category: '',
+                    urgency: 'normal',
+                    content: '',
+                  });
+                  setAttachments([]);
+                }}
                 className="px-6 py-2 text-sm text-neutral-600 bg-neutral-100 rounded-md mr-3 hover:bg-neutral-200 transition-colors"
               >
                 重置
@@ -305,20 +429,20 @@ export default function Channel() {
             </div>
             <div className="p-4">
               <div className="text-center py-4">
-                <span className="text-4xl font-bold text-railway-600">12</span>
+                <span className="text-4xl font-bold text-railway-600">{todayOrders.length}</span>
                 <p className="text-sm text-neutral-500 mt-1">件工单</p>
               </div>
               <div className="grid grid-cols-3 gap-2 mt-4 text-center">
                 <div className="p-2 bg-neutral-50 rounded">
-                  <p className="text-lg font-semibold text-neutral-700">8</p>
+                  <p className="text-lg font-semibold text-neutral-700">{todayByChannel.hotline + todayByChannel.wechat + todayByChannel.app}</p>
                   <p className="text-xs text-neutral-500">热线</p>
                 </div>
                 <div className="p-2 bg-neutral-50 rounded">
-                  <p className="text-lg font-semibold text-neutral-700">2</p>
+                  <p className="text-lg font-semibold text-neutral-700">{todayByChannel.web}</p>
                   <p className="text-xs text-neutral-500">网页</p>
                 </div>
                 <div className="p-2 bg-neutral-50 rounded">
-                  <p className="text-lg font-semibold text-neutral-700">2</p>
+                  <p className="text-lg font-semibold text-neutral-700">0</p>
                   <p className="text-xs text-neutral-500">其他</p>
                 </div>
               </div>
@@ -331,7 +455,11 @@ export default function Channel() {
             </div>
             <div className="divide-y divide-neutral-100">
               {workOrders.slice(0, 4).map((order) => (
-                <div key={order.id} className="p-4 hover:bg-neutral-50 transition-colors">
+                <div
+                  key={order.id}
+                  onClick={() => navigate('/process', { state: { openOrderId: order.id } })}
+                  className="p-4 hover:bg-neutral-50 transition-colors cursor-pointer"
+                >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-neutral-700 truncate">
@@ -351,6 +479,11 @@ export default function Channel() {
                   </div>
                 </div>
               ))}
+              {workOrders.length === 0 && (
+                <div className="p-8 text-center text-neutral-400 text-sm">
+                  暂无工单记录
+                </div>
+              )}
             </div>
           </div>
         </div>

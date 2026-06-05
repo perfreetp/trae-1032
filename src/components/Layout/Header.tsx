@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell, Search, User } from 'lucide-react';
 
 interface HeaderProps {
@@ -5,6 +7,16 @@ interface HeaderProps {
 }
 
 export default function Header({ title }: HeaderProps) {
+  const navigate = useNavigate();
+  const [searchText, setSearchText] = useState('');
+
+  const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && searchText.trim()) {
+      navigate('/process', { state: { searchKeyword: searchText.trim() } });
+      setSearchText('');
+    }
+  };
+
   return (
     <header className="h-16 bg-white border-b border-neutral-200 flex items-center justify-between px-6 sticky top-0 z-10">
       <div className="flex items-center">
@@ -15,8 +27,11 @@ export default function Header({ title }: HeaderProps) {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
           <input
             type="text"
-            placeholder="搜索工单..."
-            className="pl-9 pr-4 py-2 w-64 text-sm bg-neutral-50 border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-railway-500 focus:border-transparent"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            onKeyDown={handleSearch}
+            placeholder="搜索工单编号、标题、姓名、手机号..."
+            className="pl-9 pr-4 py-2 w-72 text-sm bg-neutral-50 border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-railway-500 focus:border-transparent"
           />
         </div>
         <button className="relative p-2 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 rounded-md transition-colors">

@@ -4,6 +4,14 @@ export type ChannelType = 'hotline' | 'web' | 'wechat' | 'app';
 export type SatisfactionLevel = 1 | 2 | 3 | 4 | 5;
 export type RectifyStatus = 'pending' | 'rectifying' | 'reviewing' | 'closed';
 
+export interface Attachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url: string;
+}
+
 export interface WorkOrder {
   id: string;
   title: string;
@@ -18,9 +26,13 @@ export interface WorkOrder {
   createTime: string;
   deadline: string;
   content: string;
-  attachment?: string;
+  attachments?: Attachment[];
   assignee?: string;
   department?: string;
+  replyContent?: string;
+  replyTime?: string;
+  assignTime?: string;
+  assignRemark?: string;
 }
 
 export interface ProcessLog {
@@ -35,21 +47,32 @@ export interface ProcessLog {
 export interface Review {
   id: string;
   orderId: string;
+  orderTitle: string;
+  passengerName: string;
   satisfaction: SatisfactionLevel;
   comment: string;
   reviewTime: string;
   isRepeat: boolean;
+  reviewer?: string;
+  remark?: string;
 }
 
 export interface RectifyTask {
   id: string;
   orderId: string;
+  orderTitle: string;
   department: string;
-  measure: string;
+  responsiblePerson?: string;
+  problemDescription: string;
+  measure?: string;
   status: RectifyStatus;
   deadline: string;
+  assignTime?: string;
   completeTime?: string;
   reviewer?: string;
+  reviewComment?: string;
+  reviewEvaluation?: string;
+  closeTime?: string;
 }
 
 export interface Department {
