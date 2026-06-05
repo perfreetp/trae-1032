@@ -191,7 +191,7 @@ export default function Dashboard() {
         color: 'bg-neutral-100 text-neutral-600',
         bgColor: 'bg-neutral-50',
         route: '/rectify',
-        state: null,
+        state: { filter: 'pending_close' as const },
       },
       {
         key: 'closed',

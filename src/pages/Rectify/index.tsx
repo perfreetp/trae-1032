@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Wrench,
   Clock,
@@ -21,6 +22,8 @@ import { departments } from '../../data/mockData';
 import type { RectifyTask, RectifyStatus } from '../../types';
 
 export default function Rectify() {
+  const location = useLocation();
+  const locationState = location.state as { filter?: 'pending_close' } | null;
   const { rectifyTasks, updateRectifyTask, currentRole } = useAppStore();
   const canOperate = currentRole === 'manager';
 
@@ -35,14 +38,23 @@ export default function Rectify() {
   const [measureContent, setMeasureContent] = useState('');
   const [closeEvaluation, setCloseEvaluation] = useState<'优秀' | '良好' | '合格' | '不合格'>('良好');
   const [closeReviewer, setCloseReviewer] = useState('管理员');
+  const [showPendingClose, setShowPendingClose] = useState(false);
 
-  const filteredTasks = useMemo(
-    () =>
-      activeTab === 'all'
-        ? rectifyTasks
-        : rectifyTasks.filter((t) => t.status === activeTab),
-    [rectifyTasks, activeTab]
-  );
+  useEffect(() => {
+    if (locationState?.filter === 'pending_close') {
+      setShowPendingClose(true);
+    }
+  }, [locationState]);
+
+  const filteredTasks = useMemo(() => {
+    let result = rectifyTasks;
+    if (showPendingClose) {
+      result = result.filter((t) => t.status !== 'closed');
+    } else if (activeTab !== 'all') {
+      result = result.filter((t) => t.status === activeTab);
+    }
+    return result;
+  }, [rectifyTasks, activeTab, showPendingClose]);
 
   const tabCounts: Record<string, number> = useMemo(
     () => ({

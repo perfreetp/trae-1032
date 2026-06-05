@@ -65,6 +65,13 @@ export default function Review() {
   const [followUpAssignee, setFollowUpAssignee] = useState('');
   const [followUpDeadline, setFollowUpDeadline] = useState('');
   const [followUpRemark, setFollowUpRemark] = useState('');
+  const [followUpReason, setFollowUpReason] = useState('');
+
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [selectedFollowUpId, setSelectedFollowUpId] = useState<string | null>(null);
+  const [followUpResult, setFollowUpResult] = useState('');
+
+  const followUpReasons = ['低满意度回访', '重复投诉跟进', '旅客特殊诉求', '其他原因'];
 
   const canDoFollowUp = currentRole === 'reviewer' || currentRole === 'manager';
 
@@ -152,16 +159,28 @@ export default function Review() {
     setSelectedOrder(null);
   };
 
+  const hasPendingFollowUp = (reviewId: string) => {
+    return followUpTasks.some((t) => t.reviewId === reviewId && t.status === 'pending');
+  };
+
+  const getReviewFollowUps = (reviewId: string) => {
+    return followUpTasks.filter((t) => t.reviewId === reviewId);
+  };
+
   const openFollowUpModal = (reviewId: string) => {
+    if (hasPendingFollowUp(reviewId)) {
+      return;
+    }
     setSelectedReviewId(reviewId);
     setFollowUpAssignee('');
     setFollowUpDeadline('');
     setFollowUpRemark('');
+    setFollowUpReason('');
     setShowFollowUpModal(true);
   };
 
   const submitFollowUp = () => {
-    if (!selectedReviewId || !followUpAssignee || !followUpDeadline) return;
+    if (!selectedReviewId || !followUpAssignee || !followUpDeadline || !followUpReason) return;
     const review = reviews.find((r) => r.id === selectedReviewId);
     if (!review) return;
     addFollowUpTask({
@@ -172,16 +191,27 @@ export default function Review() {
       deadline: followUpDeadline,
       remark: followUpRemark,
       createBy: reviewerName,
+      reason: followUpReason,
     });
     setShowFollowUpModal(false);
     setSelectedReviewId(null);
   };
 
-  const completeFollowUp = (taskId: string) => {
-    updateFollowUpTask(taskId, {
+  const openCompleteModal = (taskId: string) => {
+    setSelectedFollowUpId(taskId);
+    setFollowUpResult('');
+    setShowCompleteModal(true);
+  };
+
+  const submitCompleteFollowUp = () => {
+    if (!selectedFollowUpId || !followUpResult.trim()) return;
+    updateFollowUpTask(selectedFollowUpId, {
       status: 'completed',
       completeTime: formatDateTime(),
+      result: followUpResult,
     });
+    setShowCompleteModal(false);
+    setSelectedFollowUpId(null);
   };
 
   const followUpsWithReview = useMemo(
@@ -490,13 +520,39 @@ export default function Review() {
                           编辑
                         </button>
                         {canDoFollowUp && (item.satisfaction <= 2 || item.isRepeat) && (
-                          <button
-                            onClick={() => openFollowUpModal(item.id)}
-                            className="flex items-center px-2 py-1 text-sm text-warning-600 hover:text-warning-700 transition-colors ml-2"
-                          >
-                            <Plus className="w-4 h-4 mr-1" />
-                            二次跟进
-                          </button>
+                          <>
+                            {hasPendingFollowUp(item.id) ? (
+                              <span className="flex items-center px-2 py-1 text-sm text-warning-500 bg-warning-50 rounded ml-2">
+                                <Clock className="w-4 h-4 mr-1" />
+                                跟进中
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => openFollowUpModal(item.id)}
+                                className="flex items-center px-2 py-1 text-sm text-warning-600 hover:text-warning-700 transition-colors ml-2"
+                              >
+                                <Plus className="w-4 h-4 mr-1" />
+                                二次跟进
+                              </button>
+                            )}
+                          </>
+                        )}
+                        {getReviewFollowUps(item.id).filter((t) => t.status === 'completed').length > 0 && (
+                          <div className="ml-2">
+                            {getReviewFollowUps(item.id)
+                              .filter((t) => t.status === 'completed')
+                              .slice(-1)
+                              .map((t) => (
+                                <span
+                                  key={t.id}
+                                  className="inline-flex items-center px-2 py-1 text-xs text-success-600 bg-success-50 rounded"
+                                  title={t.result}
+                                >
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  已跟进
+                                </span>
+                              ))}
+                          </div>
                         )}
                       </div>
                     )}
@@ -547,7 +603,7 @@ export default function Review() {
                     )}
                   </div>
                   <button
-                    onClick={() => completeFollowUp(item.id)}
+                    onClick={() => openCompleteModal(item.id)}
                     className="flex items-center px-3 py-1 text-sm text-white bg-success-500 rounded-md hover:bg-success-600 transition-colors"
                   >
                     <Check className="w-4 h-4 mr-1" />
@@ -699,6 +755,23 @@ export default function Review() {
             <div className="p-5 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  跟进原因 <span className="text-danger-500">*</span>
+                </label>
+                <select
+                  value={followUpReason}
+                  onChange={(e) => setFollowUpReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-railway-500 focus:border-transparent"
+                >
+                  <option value="">请选择跟进原因</option>
+                  {followUpReasons.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
                   跟进负责人 <span className="text-danger-500">*</span>
                 </label>
                 <div className="flex items-center px-3 py-2 bg-neutral-50 rounded-md border border-neutral-200">
@@ -749,11 +822,63 @@ export default function Review() {
               </button>
               <button
                 onClick={submitFollowUp}
-                disabled={!followUpAssignee || !followUpDeadline}
+                disabled={!followUpReason || !followUpAssignee || !followUpDeadline}
                 className="px-4 py-2 text-sm text-white bg-railway-500 rounded-md hover:bg-railway-600 transition-colors flex items-center disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 创建跟进
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCompleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white rounded-lg w-[550px] animate-slide-up">
+            <div className="p-5 border-b border-neutral-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-neutral-700">完成跟进任务</h3>
+              <button
+                onClick={() => {
+                  setShowCompleteModal(false);
+                  setSelectedFollowUpId(null);
+                }}
+                className="p-1 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 rounded transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  处理结果 <span className="text-danger-500">*</span>
+                </label>
+                <textarea
+                  value={followUpResult}
+                  onChange={(e) => setFollowUpResult(e.target.value)}
+                  rows={4}
+                  placeholder="请详细填写跟进处理结果..."
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-success-500 focus:border-transparent resize-none"
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-neutral-200 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowCompleteModal(false);
+                  setSelectedFollowUpId(null);
+                }}
+                className="px-4 py-2 text-sm text-neutral-600 bg-neutral-100 rounded-md hover:bg-neutral-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={submitCompleteFollowUp}
+                disabled={!followUpResult.trim()}
+                className="px-4 py-2 text-sm text-white bg-success-500 rounded-md hover:bg-success-600 transition-colors flex items-center disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                <Check className="w-4 h-4 mr-2" />
+                确认完成
               </button>
             </div>
           </div>

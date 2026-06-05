@@ -36,7 +36,9 @@ import type {
 
 export default function Process() {
   const location = useLocation();
-  const locationState = location.state as { searchKeyword?: string; openOrderId?: string } | null;
+  const locationState = location.state as
+    | { searchKeyword?: string; openOrderId?: string; status?: WorkOrderStatus }
+    | null;
 
   const {
     workOrders,
@@ -84,6 +86,9 @@ export default function Process() {
     if (locationState?.openOrderId) {
       const order = workOrders.find((o) => o.id === locationState.openOrderId);
       if (order) setSelectedOrder(order);
+    }
+    if (locationState?.status) {
+      setActiveTab(locationState.status);
     }
   }, [locationState, workOrders]);
 
@@ -172,16 +177,12 @@ export default function Process() {
     }
 
     if (timeWarningFilter !== 'all') {
-      if (timeWarningFilter === 'normal') {
-        result = result.filter(
-          (o) =>
-            o.status !== 'closed' &&
-            o.status !== 'replied' &&
-            getTimeWarningType(o.deadline, o.status) === 'normal'
-        );
-      } else {
-        result = result.filter((o) => getTimeWarningType(o.deadline, o.status) === timeWarningFilter);
-      }
+      result = result.filter(
+        (o) =>
+          o.status !== 'closed' &&
+          o.status !== 'replied' &&
+          getTimeWarningType(o.deadline, o.status) === timeWarningFilter
+      );
     }
 
     return result;
@@ -200,15 +201,28 @@ export default function Process() {
     closed: workOrders.filter((o) => o.status === 'closed').length,
   };
 
+  const statusFilteredOrders = useMemo(() => {
+    let result = [...workOrders];
+    if (activeTab !== 'all') {
+      result = result.filter((o) => o.status === activeTab);
+    }
+    return result;
+  }, [workOrders, activeTab]);
+
   const timeWarningCounts = useMemo(() => {
-    const activeOrders = workOrders.filter((o) => o.status !== 'closed' && o.status !== 'replied');
+    const activeOrders = statusFilteredOrders.filter(
+      (o) => o.status !== 'closed' && o.status !== 'replied'
+    );
     return {
       all: activeOrders.length,
-      warning: activeOrders.filter((o) => getTimeWarningType(o.deadline, o.status) === 'warning').length,
-      overdue: activeOrders.filter((o) => getTimeWarningType(o.deadline, o.status) === 'overdue').length,
-      normal: activeOrders.filter((o) => getTimeWarningType(o.deadline, o.status) === 'normal').length,
+      warning: activeOrders.filter((o) => getTimeWarningType(o.deadline, o.status) === 'warning')
+        .length,
+      overdue: activeOrders.filter((o) => getTimeWarningType(o.deadline, o.status) === 'overdue')
+        .length,
+      normal: activeOrders.filter((o) => getTimeWarningType(o.deadline, o.status) === 'normal')
+        .length,
     };
-  }, [workOrders]);
+  }, [statusFilteredOrders]);
 
   const orderUrges = useMemo(() => {
     if (!selectedOrder) return [];
